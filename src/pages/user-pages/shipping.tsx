@@ -120,7 +120,7 @@ export default function Shipping() {
                         </span>
                         <span className="block text-xs text-stone-400 mt-0.5">{option.eta}</span>
                         <span className="block text-sm font-semibold text-stone-900 mt-1">
-                          ${option.fee.toFixed(2)}
+                          ₦{option.fee.toFixed(2)}
                         </span>
                       </span>
                     </button>
@@ -136,17 +136,17 @@ export default function Shipping() {
             <div className="flex flex-col gap-2 text-sm text-stone-500 pb-4 border-b border-stone-100">
               <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span className="text-stone-800 font-medium">${subtotal.toFixed(2)}</span>
+                <span className="text-stone-800 font-medium">₦{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Shipping</span>
-                <span className="text-stone-800 font-medium">${shippingFee.toFixed(2)}</span>
+                <span className="text-stone-800 font-medium">₦{shippingFee.toFixed(2)}</span>
               </div>
             </div>
             <div className="flex justify-between items-center py-4">
               <span className="text-sm font-semibold text-stone-800">Total</span>
               <span className="text-lg font-bold text-stone-900">
-                ${(subtotal + shippingFee).toFixed(2)}
+                ₦{(subtotal + shippingFee).toFixed(2)}
               </span>
             </div>
             <button

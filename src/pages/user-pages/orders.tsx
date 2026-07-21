@@ -110,7 +110,7 @@ export default function Orders() {
                   <p className="text-xs text-stone-400">
                     {order.items.reduce((sum, i) => sum + i.quantity, 0)} item(s)
                   </p>
-                  <p className="text-sm font-bold text-stone-900">${order.total.toFixed(2)}</p>
+                  <p className="text-sm font-bold text-stone-900">₦{order.total.toFixed(2)}</p>
                 </div>
               </Link>
               );

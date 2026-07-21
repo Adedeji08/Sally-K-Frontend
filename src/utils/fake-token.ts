@@ -1,6 +1,7 @@
 export interface DummyUser {
   name: string;
   email: string;
+  role?: "buyer" | "seller";
 }
 
 const base64UrlEncode = (value: unknown) =>

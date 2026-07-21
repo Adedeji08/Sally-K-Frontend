@@ -5,13 +5,14 @@ import Navbar from "../../layouts/navbar";
 import { useAuth } from "../../context/auth-context";
 import { useCart } from "../../context/cart-context";
 import { useWishlist } from "../../context/wishlist-context";
-import { productsData } from "./home";
+import { useProductsData } from "./home";
 
 export default function Wishlist() {
   const navigate = useNavigate();
   const { isAuthenticated, openLoginModal } = useAuth();
   const { productIds, removeFromWishlist } = useWishlist();
   const { addItem } = useCart();
+  const productsData = useProductsData();
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -84,7 +85,7 @@ export default function Wishlist() {
                     </h3>
                   </Link>
                   <div className="flex items-center justify-between mt-2">
-                    <p className="text-sm font-bold text-stone-900">${product.price}</p>
+                    <p className="text-sm font-bold text-stone-900">₦{product.price}</p>
                     <button
                       onClick={() =>
                         addItem({

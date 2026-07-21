@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Heart, Minus, Plus, ShoppingBag, Star } from "lucide-react";
 import Navbar from "../../layouts/navbar";
-import { productsData, tagColors } from "./home";
+import { useProductsData, tagColors } from "./home";
 import { useAuth } from "../../context/auth-context";
 import { useCart } from "../../context/cart-context";
 import { useWishlist } from "../../context/wishlist-context";
@@ -80,10 +80,11 @@ export default function ProductDetail() {
   const { isAuthenticated, user, openLoginModal } = useAuth();
   const { addItem } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const productsData = useProductsData();
 
   const product = useMemo(
     () => productsData.find((p) => p.id === Number(id)),
-    [id]
+    [productsData, id]
   );
 
   const sizeOptions = useMemo(
@@ -252,7 +253,7 @@ export default function ProductDetail() {
               </span>
             </div>
 
-            <p className="text-2xl font-bold text-stone-900 mb-6">${product.price.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-stone-900 mb-6">₦{product.price.toFixed(2)}</p>
 
             {/* Color */}
             <div className="mb-5">

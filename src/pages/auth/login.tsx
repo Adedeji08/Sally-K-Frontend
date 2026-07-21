@@ -23,7 +23,9 @@ const Login = () => {
         Log in to continue shopping or manage your storefront.
       </p>
 
-      <LoginForm onSuccess={() => navigate("/")} />
+      <LoginForm
+        onSuccess={(user) => navigate(user.role === "seller" ? "/seller/dashboard" : "/")}
+      />
 
       <div className="flex items-center justify-center mt-5">
         <label className="text-xs md:text-sm text-[#475467]">

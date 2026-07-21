@@ -13,13 +13,15 @@ export interface Order {
   deliveryMethod: DeliveryMethod;
   paymentMethod: "card" | "transfer";
   paymentStatus: "pending" | "paid";
+  fulfilled: boolean;
   createdAt: number;
 }
 
 interface OrderContextValue {
   orders: Order[];
-  addOrder: (order: Omit<Order, "id" | "createdAt">) => Order;
+  addOrder: (order: Omit<Order, "id" | "createdAt" | "fulfilled">) => Order;
   getOrder: (id: string) => Order | undefined;
+  markFulfilled: (id: string) => void;
 }
 
 const OrderContext = createContext<OrderContextValue | null>(null);
@@ -41,10 +43,11 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
   }, [orders]);
 
-  const addOrder = (order: Omit<Order, "id" | "createdAt">) => {
+  const addOrder = (order: Omit<Order, "id" | "createdAt" | "fulfilled">) => {
     const newOrder: Order = {
       ...order,
       id: `ORD-${Date.now().toString().slice(-8)}`,
+      fulfilled: false,
       createdAt: Date.now(),
     };
     setOrders((prev) => [newOrder, ...prev]);
@@ -53,8 +56,12 @@ export function OrderProvider({ children }: { children: ReactNode }) {
 
   const getOrder = (id: string) => orders.find((order) => order.id === id);
 
+  const markFulfilled = (id: string) => {
+    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, fulfilled: true } : o)));
+  };
+
   const value = useMemo<OrderContextValue>(
-    () => ({ orders, addOrder, getOrder }),
+    () => ({ orders, addOrder, getOrder, markFulfilled }),
     [orders]
   );
 

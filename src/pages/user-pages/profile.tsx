@@ -4,6 +4,7 @@ import { Controller, useForm } from "react-hook-form";
 import { Camera, CircleCheck } from "lucide-react";
 import Navbar from "../../layouts/navbar";
 import { useAuth } from "../../context/auth-context";
+import ChangePasswordModal from "../../components/profile/change-password-modal";
 
 interface ProfileFormValues {
   fullName: string;
@@ -26,6 +27,7 @@ export default function Profile() {
   const [avatarPreview, setAvatarPreview] = useState(user?.avatarUrl);
   const [photoError, setPhotoError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
 
   const { control, handleSubmit, reset } = useForm<ProfileFormValues>({
     defaultValues: {
@@ -241,7 +243,7 @@ export default function Profile() {
           <div className="mt-6 pt-5 border-t border-stone-100">
             <button
               type="button"
-              onClick={() => navigate("/set-password")}
+              onClick={() => setPasswordModalOpen(true)}
               className="text-sm font-medium text-rose-500 hover:text-rose-600 transition-colors"
             >
               Change password
@@ -265,6 +267,11 @@ export default function Profile() {
           </div>
         </form>
       </main>
+
+      <ChangePasswordModal
+        isOpen={passwordModalOpen}
+        onClose={() => setPasswordModalOpen(false)}
+      />
     </>
   );
 }

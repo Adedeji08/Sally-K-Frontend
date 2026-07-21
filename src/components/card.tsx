@@ -7,6 +7,7 @@ interface CardProps {
   showCard?: boolean;
   style?: React.CSSProperties;
   title?: string;
+  fullWidth?: boolean;
 }
 
 export default function Card(props: CardProps) {
@@ -17,6 +18,7 @@ export default function Card(props: CardProps) {
     showCard = false,
     style = {},
     title,
+    fullWidth = false,
   } = props;
   const combinedStyle: React.CSSProperties = {
     ...sx,
@@ -26,7 +28,7 @@ export default function Card(props: CardProps) {
   return (
     <div
       style={combinedStyle}
-      className={`rounded-3xl bg-[#fff] lg:w-[500px]  px-3 shadow-md ${classNames} ${
+      className={`rounded-3xl bg-[#fff] ${fullWidth ? "" : "lg:w-[500px]"} px-3 shadow-md ${classNames} ${
         showCard ? "bg-[#fff]" : ""
       }`}
     >

@@ -7,9 +7,12 @@ import { useNavigate } from "react-router-dom";
 const TOKEN_KEY = "authToken";
 const PROFILE_KEY = "buyerProfile";
 
-interface AuthUser {
+export type UserRole = "buyer" | "seller";
+
+export interface AuthUser {
   name: string;
   email: string;
+  role: UserRole;
   phone?: string;
   dateOfBirth?: string;
   gender?: string;
@@ -17,7 +20,14 @@ interface AuthUser {
   avatarUrl?: string;
 }
 
-type ProfileExtras = Omit<AuthUser, "name" | "email">;
+// Dummy seed accounts: there's a single unified login screen, so the role is
+// resolved from the email that's typed in rather than which screen you're on.
+const SEED_ACCOUNTS: Record<string, { role: UserRole; name: string }> = {
+  "ebenoluwadamilola@gmail.com": { role: "buyer", name: "Ebenoluwa Damilola" },
+  "adedami08@outloo.com": { role: "seller", name: "Adedami" },
+};
+
+type ProfileExtras = Partial<Omit<AuthUser, "name" | "email" | "role">>;
 
 function readProfileExtras(): ProfileExtras {
   try {
@@ -35,7 +45,7 @@ interface DecodedToken extends AuthUser {
 interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => void;
+  login: (email: string, password: string, roleOverride?: UserRole) => AuthUser;
   logout: () => void;
   updateProfile: (updates: Partial<AuthUser>) => void;
   isLoginModalOpen: boolean;
@@ -56,7 +66,12 @@ function readUserFromStorage(): AuthUser | null {
       localStorage.removeItem(TOKEN_KEY);
       return null;
     }
-    return { name: decoded.name, email: decoded.email, ...readProfileExtras() };
+    return {
+      name: decoded.name,
+      email: decoded.email,
+      role: decoded.role ?? "buyer",
+      ...readProfileExtras(),
+    };
   } catch {
     localStorage.removeItem(TOKEN_KEY);
     return null;
@@ -70,19 +85,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [loginModalReason, setLoginModalReason] = useState(DEFAULT_MODAL_REASON);
   const navigate = useNavigate();
+
   // Dummy auth: there's no backend yet, so any valid-looking email/password
-  // combination succeeds and mints a locally-signed placeholder token.
-  const login = (email: string, _password: string) => {
+  // combination succeeds. The two seed accounts resolve to a fixed role; any
+  // other email defaults to "buyer" unless a role is explicitly passed in
+  // (used by the signup flow, where the user already told us which role they want).
+  const login = (email: string, _password: string, roleOverride?: UserRole) => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const seed = SEED_ACCOUNTS[normalizedEmail];
+    const role: UserRole = roleOverride ?? seed?.role ?? "buyer";
     const name =
-      email
+      seed?.name ??
+      (email
         .split("@")[0]
         ?.replace(/[._]+/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase()) || "Shopper";
+        .replace(/\b\w/g, (c) => c.toUpperCase()) ||
+        (role === "seller" ? "Seller" : "Shopper"));
 
-    const nextUser: AuthUser = { name, email, ...readProfileExtras() };
-    localStorage.setItem(TOKEN_KEY, createFakeToken({ name, email }));
+    const nextUser: AuthUser = { name, email, role, ...readProfileExtras() };
+    localStorage.setItem(TOKEN_KEY, createFakeToken({ name, email, role }));
     setUser(nextUser);
     setIsLoginModalOpen(false);
+    return nextUser;
   };
 
   const logout = () => {
@@ -95,8 +119,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser((prev) => {
       if (!prev) return prev;
       const next: AuthUser = { ...prev, ...updates };
-      const { name, email, ...extras } = next;
-      localStorage.setItem(TOKEN_KEY, createFakeToken({ name, email }));
+      const { name, email, role, ...extras } = next;
+      localStorage.setItem(TOKEN_KEY, createFakeToken({ name, email, role }));
       localStorage.setItem(PROFILE_KEY, JSON.stringify(extras));
       return next;
     });

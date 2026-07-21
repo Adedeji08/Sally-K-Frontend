@@ -112,7 +112,7 @@ export default function Rewards() {
         <div className="bg-rose-50 rounded-2xl p-5 mb-6">
           <p className="text-sm text-rose-700">
             <span className="font-semibold">How you earn points:</span> you get 10 points for
-            every $1 you spend. Points are calculated automatically from your order history and
+            every ₦1 you spend. Points are calculated automatically from your order history and
             your tier upgrades as your total grows.
           </p>
         </div>
@@ -148,7 +148,7 @@ export default function Rewards() {
                         month: "short",
                         day: "numeric",
                       })}{" "}
-                      · ${order.total.toFixed(2)}
+                      · ₦{order.total.toFixed(2)}
                     </p>
                   </div>
                   <p className="text-sm font-bold text-rose-500">

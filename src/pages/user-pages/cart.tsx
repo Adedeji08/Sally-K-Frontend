@@ -58,7 +58,7 @@ export default function Cart() {
                       {[item.color, item.size].filter(Boolean).join(" · ") || "One Size"}
                     </p>
                     <p className="text-sm font-bold text-stone-900 mt-1">
-                      ${item.price.toFixed(2)}
+                      ₦{item.price.toFixed(2)}
                     </p>
                   </div>
 
@@ -97,7 +97,7 @@ export default function Cart() {
               <div className="flex flex-col gap-2 text-sm text-stone-500 pb-4 border-b border-stone-100">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span className="text-stone-800 font-medium">${subtotal.toFixed(2)}</span>
+                  <span className="text-stone-800 font-medium">₦{subtotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Shipping</span>
@@ -110,7 +110,7 @@ export default function Cart() {
               </div>
               <div className="flex justify-between items-center py-4">
                 <span className="text-sm font-semibold text-stone-800">Total</span>
-                <span className="text-lg font-bold text-stone-900">${subtotal.toFixed(2)}</span>
+                <span className="text-lg font-bold text-stone-900">₦{subtotal.toFixed(2)}</span>
               </div>
               <button
                 onClick={() => navigate("/checkout/shipping")}

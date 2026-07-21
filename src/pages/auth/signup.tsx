@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import AuthShell from "../../layouts/auth-shell";
 import Input from "../../components/reusables/input";
 import Button from "../../components/reusables/button";
+import { useAuth } from "../../context/auth-context";
 
 interface SignupFormValues {
   fullName: string;
@@ -19,6 +20,7 @@ const ROLE_COPY: Record<string, { label: string; steps: string[] }> = {
 const Signup = () => {
   const { role } = useParams<{ role: string }>();
   const navigate = useNavigate();
+  const { login, updateProfile } = useAuth();
   const { control, handleSubmit, watch } = useForm<SignupFormValues>();
 
   if (!role || !ROLE_COPY[role]) {
@@ -28,6 +30,8 @@ const Signup = () => {
   const roleInfo = ROLE_COPY[role];
 
   const onSubmit = (values: SignupFormValues) => {
+    login(values.email, values.password, role === "seller" ? "seller" : "buyer");
+    updateProfile({ name: values.fullName });
     navigate(role === "seller" ? "/onboarding/store" : "/onboarding/success", {
       state: { role, fullName: values.fullName, email: values.email },
     });

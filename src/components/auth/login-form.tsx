@@ -5,6 +5,7 @@ import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import Input from "../reusables/input";
 import Button from "../reusables/button";
 import { useAuth } from "../../context/auth-context";
+import type { AuthUser } from "../../context/auth-context";
 
 interface LoginFormValues {
   email: string;
@@ -12,7 +13,7 @@ interface LoginFormValues {
 }
 
 interface LoginFormProps {
-  onSuccess?: () => void;
+  onSuccess?: (user: AuthUser) => void;
 }
 
 export default function LoginForm({ onSuccess }: LoginFormProps) {
@@ -21,8 +22,8 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
   const { control, handleSubmit } = useForm<LoginFormValues>();
 
   const onSubmit = (values: LoginFormValues) => {
-    login(values.email, values.password);
-    onSuccess?.();
+    const user = login(values.email, values.password);
+    onSuccess?.(user);
   };
 
   return (

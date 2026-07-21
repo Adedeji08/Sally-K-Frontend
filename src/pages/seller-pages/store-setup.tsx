@@ -1,15 +1,20 @@
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useLocation, useNavigate } from "react-router-dom";
 import AuthShell from "../../layouts/auth-shell";
 import Input from "../../components/reusables/input";
-import Select from "../../components/reusables/select";
+import MultiSelect from "../../components/reusables/multi-select";
 import Textarea from "../../components/reusables/textarea";
 import Button from "../../components/reusables/button";
+import FileDropzone from "../../components/reusables/file-dropzone";
+import { useSeller } from "../../context/seller-context";
 
 interface StoreFormValues {
   brandName: string;
-  category: string;
+  categories: string[];
   bio: string;
+  instagram: string;
+  facebook: string;
 }
 
 interface AccountState {
@@ -24,16 +29,29 @@ const CATEGORY_OPTIONS = [
   { value: "shoes", label: "Shoes" },
   { value: "bags", label: "Bags" },
   { value: "accessories", label: "Accessories" },
-  { value: "mixed", label: "Mixed / multiple categories" },
 ];
 
 const StoreSetup = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { setStoreProfile } = useSeller();
   const { control, handleSubmit } = useForm<StoreFormValues>();
   const accountState = (location.state ?? {}) as AccountState;
+  const [, setLogoFile] = useState<File | null>(null);
 
   const onSubmit = (values: StoreFormValues) => {
+    const categoryLabels = values.categories.map(
+      (value) => CATEGORY_OPTIONS.find((option) => option.value === value)?.label ?? value
+    );
+
+    setStoreProfile({
+      brandName: values.brandName,
+      categories: categoryLabels,
+      bio: values.bio,
+      instagram: values.instagram,
+      facebook: values.facebook,
+    });
+
     navigate("/onboarding/success", {
       state: { role: "seller", ...accountState, ...values },
     });
@@ -41,21 +59,21 @@ const StoreSetup = () => {
 
   return (
     <AuthShell
-      title="Set up your storefront"
+      title="Brand Profile Setup"
       step={{ current: 2, total: 3, labels: ["Account", "Store", "Verify"] }}
     >
       <p className="text-[13px] text-[#65799A] text-center mb-6">
-        This is what shoppers will see on your brand page. You can edit it anytime.
+        Personalize your storefront to connect with customers. You can edit this anytime.
       </p>
 
       <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)}>
         <Controller
           name="brandName"
           control={control}
-          rules={{ required: "Brand / store name is required" }}
+          rules={{ required: "Brand name is required" }}
           render={({ field, fieldState }) => (
             <Input
-              label="Brand / store name"
+              label="Brand name"
               placeholder="e.g. Tunde Couture"
               value={field.value}
               onChange={field.onChange}
@@ -66,14 +84,18 @@ const StoreSetup = () => {
         />
 
         <Controller
-          name="category"
+          name="categories"
           control={control}
-          rules={{ required: "Select a category" }}
+          defaultValue={[]}
+          rules={{
+            validate: (value) => (value && value.length > 0) || "Select at least one category",
+          }}
           render={({ field, fieldState }) => (
-            <Select
-              label="Primary category"
+            <MultiSelect
+              label="Categories you sell"
+              placeholder="Select categories"
               options={CATEGORY_OPTIONS}
-              value={field.value}
+              value={field.value ?? []}
               onChange={field.onChange}
               error={fieldState.error?.message}
             />
@@ -85,16 +107,65 @@ const StoreSetup = () => {
           control={control}
           rules={{ required: "Tell shoppers about your brand" }}
           render={({ field, fieldState }) => (
-            <Textarea
-              label="Brand bio"
-              placeholder="Tell shoppers what makes your designs unique..."
-              value={field.value}
-              onChange={field.onChange}
-              error={fieldState.error?.message}
-              required
-            />
+            <div>
+              <Textarea
+                label="Brand biography"
+                placeholder="Tell us your brand's story..."
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+                required
+              />
+              {!fieldState.error && (
+                <p className="text-[12px] text-[#65799A] mt-1">
+                  This will appear on your public brand page. Make it engaging!
+                </p>
+              )}
+            </div>
           )}
         />
+
+        <FileDropzone
+          label="Brand logo"
+          hint="PNG, JPG, GIF up to 10MB. Recommended: 500×500px."
+          accept="image/*"
+          onFileSelect={setLogoFile}
+        />
+
+        <div>
+          <p className="text-[14px] font-bold text-[#121212] mb-2">Social media</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Controller
+              name="instagram"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  label="Instagram"
+                  prefix="https://"
+                  placeholder="instagram.com/yourbrand"
+                  value={field.value}
+                  onChange={field.onChange}
+                  autoComplete="off"
+                />
+              )}
+            />
+
+            <Controller
+              name="facebook"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  label="Facebook"
+                  prefix="https://"
+                  placeholder="facebook.com/yourbrand"
+                  value={field.value}
+                  onChange={field.onChange}
+                  autoComplete="off"
+                />
+              )}
+            />
+          </div>
+        </div>
 
         <Button size="lg" variant="primary" type="submit" className="font-normal mt-2">
           Continue

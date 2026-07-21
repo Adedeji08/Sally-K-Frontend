@@ -6,6 +6,9 @@ import Navbar from "../../../layouts/navbar";
 import { useAuth } from "../../../context/auth-context";
 import { useCart } from "../../../context/cart-context";
 import { useWishlist } from "../../../context/wishlist-context";
+import { useSellerProducts } from "../../../context/seller-product-context";
+import { useSeller } from "../../../context/seller-context";
+import { getApprovalStatus } from "../../../utils/product-approval";
 
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -40,6 +43,27 @@ const typedProducts: Product[] = products.map(product => ({
     tag: product.tag && isValidTag(product.tag) ? product.tag as 'New' | 'Trending' | 'Sale' : undefined
 }));
 
+// Merges the static demo catalog with any products a logged-in seller has
+// published, so listings a seller creates actually show up for shoppers.
+export function useProductsData(): Product[] {
+    const { products: sellerProducts } = useSellerProducts();
+    const { storeProfile } = useSeller();
+
+    return useMemo(() => {
+        const published: Product[] = sellerProducts
+            .filter(p => p.status === 'published' && p.submittedAt && getApprovalStatus(p.submittedAt) === 'approved')
+            .map(p => ({
+                id: p.id,
+                name: p.name,
+                designer: storeProfile?.brandName ?? 'Independent Designer',
+                price: p.price,
+                category: p.category,
+                image: p.images[0] ?? '',
+            }));
+        return [...typedProducts, ...published];
+    }, [sellerProducts, storeProfile]);
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────
 
 const TAG_COLORS: Record<string, string> = {
@@ -69,13 +93,11 @@ interface PriceBucket {
 }
 
 const PRICE_BUCKETS: PriceBucket[] = [
-    { label: 'Under $100', min: 0, max: 100 },
-    { label: '$100 - $250', min: 100, max: 250 },
-    { label: '$250 - $500', min: 250, max: 500 },
-    { label: '$500+', min: 500, max: Infinity },
+    { label: 'Under ₦100', min: 0, max: 100 },
+    { label: '₦100 - ₦250', min: 100, max: 250 },
+    { label: '₦250 - ₦500', min: 250, max: 500 },
+    { label: '₦500+', min: 500, max: Infinity },
 ];
-
-const DESIGNERS = Array.from(new Set(typedProducts.map(p => p.designer))).sort();
 
 // ── Hero Banner ───────────────────────────────────────────
 
@@ -368,7 +390,7 @@ function ProductCard({ product }: ProductCardProps) {
                     )}
                 </p>
                 <h3 className="text-sm font-semibold text-stone-800 mb-1 truncate">{product.name}</h3>
-                <p className="text-sm font-bold text-stone-900">${product.price}</p>
+                <p className="text-sm font-bold text-stone-900">₦{product.price}</p>
             </div>
         </div>
     );
@@ -377,6 +399,7 @@ function ProductCard({ product }: ProductCardProps) {
 // ── Product Grid ──────────────────────────────────────────
 
 function ProductGrid() {
+    const allProducts = useProductsData();
     const [searchParams, setSearchParams] = useSearchParams();
 
     const initialCategory = (() => {
@@ -429,8 +452,13 @@ function ProductGrid() {
         setSelectedDesigners([]);
     };
 
+    const designers = useMemo(
+        () => Array.from(new Set(allProducts.map(p => p.designer))).sort(),
+        [allProducts]
+    );
+
     const filtered = useMemo(() => {
-        let result = [...typedProducts];
+        let result = [...allProducts];
 
         if (cat !== 'All') {
             result = result.filter(p =>
@@ -486,7 +514,7 @@ function ProductGrid() {
         }
 
         return result;
-    }, [search, cat, tagFilter, sort, priceBucket, selectedSizes, selectedDesigners]);
+    }, [allProducts, search, cat, tagFilter, sort, priceBucket, selectedSizes, selectedDesigners]);
 
     return (
         <main className="max-w-7xl mx-auto px-6 py-10 md:py-12">
@@ -651,7 +679,7 @@ function ProductGrid() {
                         <div>
                             <p className="text-sm font-semibold text-stone-800 mb-3">Designer</p>
                             <div className="flex flex-col gap-2 max-h-40 overflow-y-auto pr-1">
-                                {DESIGNERS.map(designer => (
+                                {designers.map(designer => (
                                     <label key={designer} className="flex items-center gap-2 text-sm text-stone-600 cursor-pointer">
                                         <input
                                             type="checkbox"

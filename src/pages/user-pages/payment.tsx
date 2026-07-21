@@ -306,7 +306,7 @@ export default function Payment() {
                   <CopyableRow label="Bank name" value={BANK_DETAILS.bankName} />
                   <CopyableRow label="Account name" value={BANK_DETAILS.accountName} />
                   <CopyableRow label="Account number" value={BANK_DETAILS.accountNumber} />
-                  <CopyableRow label="Amount" value={`$${total.toFixed(2)}`} />
+                  <CopyableRow label="Amount" value={`₦${total.toFixed(2)}`} />
                 </div>
 
                 <p className="text-xs text-stone-400 mt-4">
@@ -349,7 +349,7 @@ export default function Payment() {
                     <p className="text-xs text-stone-400">Qty {item.quantity}</p>
                   </div>
                   <p className="text-xs font-semibold text-stone-800">
-                    ${(item.price * item.quantity).toFixed(2)}
+                    ₦{(item.price * item.quantity).toFixed(2)}
                   </p>
                 </div>
               ))}
@@ -358,17 +358,17 @@ export default function Payment() {
             <div className="flex flex-col gap-2 text-sm text-stone-500 py-4 border-b border-stone-100">
               <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span className="text-stone-800 font-medium">${subtotal.toFixed(2)}</span>
+                <span className="text-stone-800 font-medium">₦{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Shipping</span>
-                <span className="text-stone-800 font-medium">${shippingFee.toFixed(2)}</span>
+                <span className="text-stone-800 font-medium">₦{shippingFee.toFixed(2)}</span>
               </div>
             </div>
 
             <div className="flex justify-between items-center py-4">
               <span className="text-sm font-semibold text-stone-800">Total</span>
-              <span className="text-lg font-bold text-stone-900">${total.toFixed(2)}</span>
+              <span className="text-lg font-bold text-stone-900">₦{total.toFixed(2)}</span>
             </div>
 
             {method === "card" ? (
@@ -377,7 +377,7 @@ export default function Payment() {
                 form="card-payment-form"
                 className="w-full bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 rounded-full text-sm transition-colors"
               >
-                Pay ${total.toFixed(2)}
+                Pay ₦{total.toFixed(2)}
               </button>
             ) : (
               <button

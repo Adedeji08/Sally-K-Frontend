@@ -47,7 +47,7 @@ const FAQS: FaqItem[] = [
     question: "How do rewards points work?",
     answer: (
       <>
-        You earn 10 points for every $1 you spend, and your tier automatically upgrades as you
+        You earn 10 points for every ₦1 you spend, and your tier automatically upgrades as you
         earn more. Check your balance on the{" "}
         <Link to="/rewards" className="text-rose-500 hover:text-rose-600 font-medium">
           Rewards

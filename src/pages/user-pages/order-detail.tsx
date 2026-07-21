@@ -168,7 +168,7 @@ export default function OrderDetail() {
                   </p>
                 </div>
                 <p className="text-sm font-bold text-stone-900">
-                  ${(item.price * item.quantity).toFixed(2)}
+                  ₦{(item.price * item.quantity).toFixed(2)}
                 </p>
               </div>
             ))}
@@ -210,15 +210,15 @@ export default function OrderDetail() {
           <div className="flex flex-col gap-2 text-sm text-stone-500">
             <div className="flex justify-between">
               <span>Subtotal</span>
-              <span className="text-stone-800 font-medium">${order.subtotal.toFixed(2)}</span>
+              <span className="text-stone-800 font-medium">₦{order.subtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
               <span>Shipping</span>
-              <span className="text-stone-800 font-medium">${order.shippingFee.toFixed(2)}</span>
+              <span className="text-stone-800 font-medium">₦{order.shippingFee.toFixed(2)}</span>
             </div>
             <div className="flex justify-between pt-2 mt-1 border-t border-stone-100">
               <span className="text-sm font-semibold text-stone-800">Total</span>
-              <span className="text-lg font-bold text-stone-900">${order.total.toFixed(2)}</span>
+              <span className="text-lg font-bold text-stone-900">₦{order.total.toFixed(2)}</span>
             </div>
           </div>
         </div>

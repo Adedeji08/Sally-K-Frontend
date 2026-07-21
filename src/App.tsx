@@ -7,6 +7,8 @@ import { WishlistProvider } from "./context/wishlist-context";
 import { CheckoutProvider } from "./context/checkout-context";
 import { OrderProvider } from "./context/order-context";
 import { SupportProvider } from "./context/support-context";
+import { SellerProvider } from "./context/seller-context";
+import { SellerProductProvider } from "./context/seller-product-context";
 import LoginModal from "./components/auth/login-modal";
 
 function App() {
@@ -17,10 +19,14 @@ function App() {
           <CheckoutProvider>
             <OrderProvider>
               <SupportProvider>
-                <div>
-                  <RoutesWrapper />
-                  <LoginModal />
-                </div>
+                <SellerProvider>
+                  <SellerProductProvider>
+                    <div>
+                      <RoutesWrapper />
+                      <LoginModal />
+                    </div>
+                  </SellerProductProvider>
+                </SellerProvider>
               </SupportProvider>
             </OrderProvider>
           </CheckoutProvider>
