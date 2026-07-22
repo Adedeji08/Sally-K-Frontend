@@ -13,6 +13,7 @@ import { useSellerProducts } from "../../context/seller-product-context";
 import SalesChart from "../../components/seller/sales-chart";
 import type { SalesPeriod } from "../../utils/sales-series";
 import { buildSalesSeries } from "../../utils/sales-series";
+import { getTransactionFee } from "../../utils/transaction-fee";
 
 const PERIOD_OPTIONS: { value: SalesPeriod; label: string }[] = [
   { value: "daily", label: "Daily" },
@@ -31,6 +32,10 @@ export default function DashboardOverview() {
 
   const totalSales = orders.reduce((sum, o) => sum + o.total, 0);
   const pendingOrders = orders.filter((o) => !o.fulfilled).length;
+
+  const grossMerchandiseValue = orders.reduce((sum, o) => sum + o.subtotal, 0);
+  const platformFees = orders.reduce((sum, o) => sum + getTransactionFee(o.subtotal), 0);
+  const netPayout = grossMerchandiseValue - platformFees;
 
   const kpis = [
     {
@@ -106,6 +111,38 @@ export default function DashboardOverview() {
             <p className="text-[12px] text-[#65799A] mt-0.5">{label}</p>
           </div>
         ))}
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[15px] font-semibold text-[#121212]">Earnings Breakdown</h2>
+          <Link
+            to="/seller/payouts"
+            className="text-[12px] font-semibold text-[#ED1280] hover:opacity-80"
+          >
+            View payouts →
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <p className="text-[12px] text-[#65799A] mb-1">Gross merchandise value</p>
+            <p className="text-[18px] font-bold text-[#121212]">
+              ₦{grossMerchandiseValue.toFixed(2)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[12px] text-[#65799A] mb-1">Platform fees</p>
+            <p className="text-[18px] font-bold text-rose-500">-₦{platformFees.toFixed(2)}</p>
+          </div>
+          <div>
+            <p className="text-[12px] text-[#65799A] mb-1">Net payout</p>
+            <p className="text-[18px] font-bold text-emerald-600">₦{netPayout.toFixed(2)}</p>
+          </div>
+        </div>
+        <p className="text-[11px] text-[#95959D] mt-4">
+          Delivery fees are collected separately from buyers and paid to the logistics
+          partner — they're not part of your payout.
+        </p>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">

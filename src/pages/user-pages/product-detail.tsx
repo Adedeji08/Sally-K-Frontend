@@ -6,47 +6,8 @@ import { useProductsData, tagColors } from "./home";
 import { useAuth } from "../../context/auth-context";
 import { useCart } from "../../context/cart-context";
 import { useWishlist } from "../../context/wishlist-context";
-
-interface ProductReview {
-  id: string;
-  name: string;
-  rating: number;
-  comment: string;
-  createdAt: number;
-}
-
-const REVIEWS_KEY_PREFIX = "productReviews:";
-
-function seedReviews(): ProductReview[] {
-  const now = Date.now();
-  return [
-    {
-      id: "seed-1",
-      name: "Sarah J.",
-      rating: 5,
-      comment:
-        "Absolutely breathtaking! The quality is superb and it fits like a dream. I received so many compliments.",
-      createdAt: now - 14 * 86400000,
-    },
-    {
-      id: "seed-2",
-      name: "Michelle L.",
-      rating: 4,
-      comment:
-        "A beautiful piece. The color is slightly different in person but still lovely. True to size.",
-      createdAt: now - 30 * 86400000,
-    },
-  ];
-}
-
-function readReviews(productId: number): ProductReview[] {
-  try {
-    const raw = localStorage.getItem(REVIEWS_KEY_PREFIX + productId);
-    return raw ? JSON.parse(raw) : seedReviews();
-  } catch {
-    return seedReviews();
-  }
-}
+import type { ProductReview } from "../../utils/product-reviews";
+import { readReviews, writeReviews } from "../../utils/product-reviews";
 
 function formatTimeAgo(timestamp: number): string {
   const days = Math.floor((Date.now() - timestamp) / 86400000);
@@ -107,7 +68,7 @@ export default function ProductDetail() {
 
   useEffect(() => {
     if (product) {
-      localStorage.setItem(REVIEWS_KEY_PREFIX + product.id, JSON.stringify(reviews));
+      writeReviews(product.id, reviews);
     }
   }, [reviews, product]);
 
@@ -233,7 +194,13 @@ export default function ProductDetail() {
               {product.name}
             </h1>
             <p className="text-sm text-stone-400 mb-3">
-              by <span className="text-rose-500 font-medium">{product.designer}</span>
+              by{" "}
+              <Link
+                to={`/designer/${encodeURIComponent(product.designer)}`}
+                className="text-rose-500 font-medium hover:text-rose-600"
+              >
+                {product.designer}
+              </Link>
             </p>
 
             <div className="flex items-center gap-1.5 mb-4">

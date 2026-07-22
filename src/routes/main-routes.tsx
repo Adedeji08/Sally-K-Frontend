@@ -3,6 +3,7 @@
 // to the pre-app auth/onboarding screens declared in routes/index.tsx.
 import { UserDashboard } from "../pages/user-pages/home";
 import ProductDetail from "../pages/user-pages/product-detail";
+import DesignerStore from "../pages/user-pages/designer-store";
 import Cart from "../pages/user-pages/cart";
 import Shipping from "../pages/user-pages/shipping";
 import Payment from "../pages/user-pages/payment";
@@ -35,6 +36,12 @@ const MainRoutes = [
         path: "/product/:id",
         element: (
             <ProductDetail />
+        )
+    },
+    {
+        path: "/designer/:name",
+        element: (
+            <DesignerStore />
         )
     },
     {

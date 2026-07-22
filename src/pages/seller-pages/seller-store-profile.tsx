@@ -45,7 +45,7 @@ export default function SellerStoreProfile() {
   };
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-semibold text-[#121212] mb-1">Store Profile</h1>
       <p className="text-sm text-[#65799A] mb-6">
         This is what shoppers see on your brand page.

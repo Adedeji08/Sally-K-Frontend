@@ -17,7 +17,7 @@ export default function ProductNew() {
 
   if (!canSell) {
     return (
-      <div className="max-w-xl">
+      <div className="max-w-xl mx-auto">
         <button
           onClick={() => navigate("/seller/products")}
           className="flex items-center gap-1.5 text-sm text-[#65799A] hover:text-[#121212] mb-6 transition-colors"
@@ -66,7 +66,7 @@ export default function ProductNew() {
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl mx-auto">
       <button
         onClick={() => navigate("/seller/products")}
         className="flex items-center gap-1.5 text-sm text-[#65799A] hover:text-[#121212] mb-6 transition-colors"

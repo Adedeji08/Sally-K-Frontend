@@ -382,7 +382,13 @@ function ProductCard({ product }: ProductCardProps) {
             </div>
             <div className="p-4">
                 <p className="text-xs text-stone-400 font-medium mb-1 flex items-center gap-1.5">
-                    {product.designer}
+                    <Link
+                        to={`/designer/${encodeURIComponent(product.designer)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-rose-500 hover:underline transition-colors"
+                    >
+                        {product.designer}
+                    </Link>
                     {product.sponsored && (
                         <span className="text-[9px] uppercase tracking-wide text-stone-400 border border-stone-200 rounded px-1 py-[1px] font-semibold">
                             Ad

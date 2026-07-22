@@ -21,7 +21,7 @@ export default function SellerProductView() {
 
   if (!product) {
     return (
-      <div className="max-w-xl text-center py-16">
+      <div className="max-w-xl mx-auto text-center py-16">
         <p className="text-lg font-semibold text-[#121212] mb-2">Product not found</p>
         <p className="text-sm text-[#65799A] mb-6">This listing may have been deleted.</p>
         <Link to="/seller/products" className="text-[#ED1280] font-medium hover:opacity-80">
@@ -40,7 +40,7 @@ export default function SellerProductView() {
   const badge = STATUS_BADGE[statusKey];
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-3xl mx-auto">
       <button
         onClick={() => navigate("/seller/products")}
         className="flex items-center gap-1.5 text-sm text-[#65799A] hover:text-[#121212] mb-6 transition-colors"

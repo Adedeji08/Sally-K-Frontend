@@ -2,16 +2,19 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Banknote, CreditCard, MapPin } from "lucide-react";
 import { useOrders } from "../../context/order-context";
 import { DELIVERY_OPTIONS } from "../../context/checkout-context";
+import { getTransactionFee, getNetPayout } from "../../utils/transaction-fee";
 
 export default function SellerOrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getOrder, markFulfilled } = useOrders();
   const order = id ? getOrder(id) : undefined;
+  const platformFee = order ? getTransactionFee(order.subtotal) : 0;
+  const netPayout = order ? getNetPayout(order.subtotal) : 0;
 
   if (!order) {
     return (
-      <div className="max-w-xl text-center py-16">
+      <div className="max-w-xl mx-auto text-center py-16">
         <p className="text-lg font-semibold text-[#121212] mb-2">Order not found</p>
         <Link to="/seller/orders" className="text-[#ED1280] font-medium hover:opacity-80">
           Back to orders
@@ -21,7 +24,7 @@ export default function SellerOrderDetail() {
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-3xl mx-auto">
       <button
         onClick={() => navigate("/seller/orders")}
         className="flex items-center gap-1.5 text-sm text-[#65799A] hover:text-[#121212] mb-6 transition-colors"
@@ -114,7 +117,7 @@ export default function SellerOrderDetail() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
         <h2 className="text-sm font-semibold text-[#121212] mb-3">Summary</h2>
         <div className="flex flex-col gap-2 text-sm text-[#65799A]">
           <div className="flex justify-between">
@@ -122,12 +125,30 @@ export default function SellerOrderDetail() {
             <span className="text-[#121212] font-medium">₦{order.subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
-            <span>Shipping</span>
+            <span>Shipping (paid to logistics partner)</span>
             <span className="text-[#121212] font-medium">₦{order.shippingFee.toFixed(2)}</span>
           </div>
           <div className="flex justify-between pt-2 mt-1 border-t border-[#F2E8ED]">
-            <span className="text-sm font-semibold text-[#121212]">Total</span>
+            <span className="text-sm font-semibold text-[#121212]">Buyer paid</span>
             <span className="text-lg font-bold text-[#121212]">₦{order.total.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm p-6">
+        <h2 className="text-sm font-semibold text-[#121212] mb-3">Your Payout</h2>
+        <div className="flex flex-col gap-2 text-sm text-[#65799A]">
+          <div className="flex justify-between">
+            <span>Sale amount</span>
+            <span className="text-[#121212] font-medium">₦{order.subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Platform fee</span>
+            <span className="text-rose-500 font-medium">-₦{platformFee.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between pt-2 mt-1 border-t border-[#F2E8ED]">
+            <span className="text-sm font-semibold text-[#121212]">Net payout</span>
+            <span className="text-lg font-bold text-emerald-600">₦{netPayout.toFixed(2)}</span>
           </div>
         </div>
       </div>

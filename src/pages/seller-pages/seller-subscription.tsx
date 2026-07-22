@@ -40,7 +40,7 @@ export default function SellerSubscription() {
       )}
 
       {!editing && currentPlan && subscription ? (
-        <div className="bg-white rounded-2xl shadow-sm p-6 max-w-md">
+        <div className="bg-white rounded-2xl shadow-sm p-6 max-w-md mx-auto">
           <p className="text-[12px] font-semibold text-[#ED1280] uppercase tracking-wide mb-1">
             Current plan
           </p>
