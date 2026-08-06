@@ -1,23 +1,49 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Mail, MailCheck } from "lucide-react";
 import AuthShell from "../../layouts/auth-shell";
 import Input from "../../components/reusables/input";
 import Button from "../../components/reusables/button";
+import useRequest from "../../hooks/use-req";
+import { useToast } from "../../context/toast-context";
+
+const RESEND_COOLDOWN_SECONDS = 30;
 
 interface ForgotPasswordValues {
   email: string;
 }
 
 const ForgotPassword = () => {
-  const navigate = useNavigate();
+  const toast = useToast();
   const { control, handleSubmit, getValues } = useForm<ForgotPasswordValues>();
   const [submitted, setSubmitted] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const { loading, makeRequest } = useRequest("/auth/forgot-password", "POST");
 
-  const onSubmit = () => {
-    // TODO: wire up to auth API — trigger reset email
-    setSubmitted(true);
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown((prev) => prev - 1), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  const sendResetLink = async (email: string) => {
+    const toastId = toast.loading("Sending reset link...");
+    const [json, status] = await makeRequest({ email });
+
+    if (status < 200 || status >= 300) {
+      toast.update(toastId, "error", json?.message || "Couldn't send the reset link. Try again.");
+      return false;
+    }
+
+    toast.update(toastId, "success", "Reset link sent! Check your email.");
+    setCooldown(RESEND_COOLDOWN_SECONDS);
+    return true;
+  };
+
+  const onSubmit = async (values: ForgotPasswordValues) => {
+    const ok = await sendResetLink(values.email);
+    if (ok) setSubmitted(true);
   };
 
   if (submitted) {
@@ -32,31 +58,25 @@ const ForgotPassword = () => {
             <span className="font-semibold text-[#1F1F1F]">
               {getValues("email")}
             </span>
-            . Follow the link to choose a new password.
+            . Open it on this device to choose a new password.
           </p>
         </div>
 
-        <Button
-          size="lg"
-          variant="primary"
-          type="button"
-          className="font-normal"
-          onClick={() => navigate("/set-password")}
-        >
-          Continue to reset password
-        </Button>
-
-        <div className="flex items-center justify-center mt-5">
+        <div className="flex flex-col items-center gap-1">
           <label className="text-xs md:text-sm text-[#475467]">
             Didn't get it?{" "}
             <button
               type="button"
-              onClick={() => setSubmitted(false)}
-              className="text-[#0867AC] hover:text-[#0867AC]"
+              onClick={() => sendResetLink(getValues("email"))}
+              disabled={cooldown > 0 || loading}
+              className="text-[#0867AC] hover:text-[#0867AC] disabled:text-[#95959D] disabled:cursor-not-allowed"
             >
-              Try another email
+              {cooldown > 0 ? `Resend in ${cooldown}s` : loading ? "Resending..." : "Resend link"}
             </button>
           </label>
+          <Link to="/login" className="text-xs md:text-sm text-[#0867AC] hover:text-[#0867AC]">
+            Back to log in
+          </Link>
         </div>
       </AuthShell>
     );
@@ -96,9 +116,10 @@ const ForgotPassword = () => {
           size="lg"
           variant="primary"
           type="submit"
+          disabled={loading}
           className="font-normal mt-2"
         >
-          Send reset link
+          {loading ? "Sending..." : "Send reset link"}
         </Button>
       </form>
 

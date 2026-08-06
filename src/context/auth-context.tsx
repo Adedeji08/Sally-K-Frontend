@@ -1,13 +1,12 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { jwtDecode } from "jwt-decode";
-import { createFakeToken } from "../utils/fake-token";
 import { useNavigate } from "react-router-dom";
 
 const TOKEN_KEY = "authToken";
-const PROFILE_KEY = "buyerProfile";
+const USER_KEY = "authUser";
 
-export type UserRole = "buyer" | "seller";
+export type UserRole = "shopper" | "seller";
 
 export interface AuthUser {
   name: string;
@@ -18,34 +17,16 @@ export interface AuthUser {
   gender?: string;
   address?: string;
   avatarUrl?: string;
-}
-
-// Dummy seed accounts: there's a single unified login screen, so the role is
-// resolved from the email that's typed in rather than which screen you're on.
-const SEED_ACCOUNTS: Record<string, { role: UserRole; name: string }> = {
-  "ebenoluwadamilola@gmail.com": { role: "buyer", name: "Ebenoluwa Damilola" },
-  "adedami08@outloo.com": { role: "seller", name: "Adedami" },
-};
-
-type ProfileExtras = Partial<Omit<AuthUser, "name" | "email" | "role">>;
-
-function readProfileExtras(): ProfileExtras {
-  try {
-    const raw = localStorage.getItem(PROFILE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-interface DecodedToken extends AuthUser {
-  exp: number;
+  emailVerified?: boolean;
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string, roleOverride?: UserRole) => AuthUser;
+  // Called once the backend has confirmed signup/login. `rawUser` is whatever
+  // shape the API returns — it's normalized into AuthUser here so the rest of
+  // the app only ever deals with one consistent shape.
+  loginWithSession: (token: string, rawUser: unknown, fallbackRole?: UserRole) => AuthUser;
   logout: () => void;
   updateProfile: (updates: Partial<AuthUser>) => void;
   isLoginModalOpen: boolean;
@@ -56,24 +37,75 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function readUserFromStorage(): AuthUser | null {
+// The backend's field naming isn't known ahead of time (snake_case vs
+// camelCase, nested vs flat), so this accepts either and always produces a
+// consistent AuthUser for the rest of the app to consume.
+function normalizeUser(raw: unknown, fallbackRole: UserRole): AuthUser {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  const roleValue = source.role;
+  const role: UserRole = roleValue === "seller" || roleValue === "shopper" ? roleValue : fallbackRole;
+
+  const readString = (...keys: string[]): string | undefined => {
+    for (const key of keys) {
+      const value = source[key];
+      if (typeof value === "string" && value.length > 0) return value;
+    }
+    return undefined;
+  };
+
+  const readBool = (...keys: string[]): boolean | undefined => {
+    for (const key of keys) {
+      const value = source[key];
+      if (typeof value === "boolean") return value;
+    }
+    return undefined;
+  };
+
+  return {
+    name: readString("name", "full_name", "fullName") ?? "",
+    email: readString("email") ?? "",
+    role,
+    phone: readString("phone", "phone_number", "phoneNumber"),
+    dateOfBirth: readString("dateOfBirth", "date_of_birth"),
+    gender: readString("gender"),
+    address: readString("address"),
+    avatarUrl: readString("avatarUrl", "avatar_url"),
+    // Absent on the backend response is treated as verified so accounts that
+    // predate email verification (or a backend that doesn't send this field)
+    // aren't unexpectedly locked out.
+    emailVerified: readBool("emailVerified", "email_verified") ?? true,
+  };
+}
+
+function isTokenExpired(token: string): boolean {
+  try {
+    const decoded: { exp?: number } = jwtDecode(token);
+    if (!decoded.exp) return false;
+    return decoded.exp * 1000 < Date.now();
+  } catch {
+    // Can't decode it (backend may not use JWTs, or uses opaque tokens) —
+    // don't block the user client-side; the backend is the source of truth
+    // for whether a token is actually valid on each request.
+    return false;
+  }
+}
+
+function readSessionFromStorage(): AuthUser | null {
   const token = localStorage.getItem(TOKEN_KEY);
-  if (!token) return null;
+  const rawUser = localStorage.getItem(USER_KEY);
+  if (!token || !rawUser) return null;
+
+  if (isTokenExpired(token)) {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    return null;
+  }
 
   try {
-    const decoded: DecodedToken = jwtDecode(token);
-    if (decoded.exp * 1000 < Date.now()) {
-      localStorage.removeItem(TOKEN_KEY);
-      return null;
-    }
-    return {
-      name: decoded.name,
-      email: decoded.email,
-      role: decoded.role ?? "buyer",
-      ...readProfileExtras(),
-    };
+    return JSON.parse(rawUser) as AuthUser;
   } catch {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
     return null;
   }
 }
@@ -81,29 +113,19 @@ function readUserFromStorage(): AuthUser | null {
 const DEFAULT_MODAL_REASON = "Log in to your account to continue.";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => readUserFromStorage());
+  const [user, setUser] = useState<AuthUser | null>(() => readSessionFromStorage());
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [loginModalReason, setLoginModalReason] = useState(DEFAULT_MODAL_REASON);
   const navigate = useNavigate();
 
-  // Dummy auth: there's no backend yet, so any valid-looking email/password
-  // combination succeeds. The two seed accounts resolve to a fixed role; any
-  // other email defaults to "buyer" unless a role is explicitly passed in
-  // (used by the signup flow, where the user already told us which role they want).
-  const login = (email: string, _password: string, roleOverride?: UserRole) => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const seed = SEED_ACCOUNTS[normalizedEmail];
-    const role: UserRole = roleOverride ?? seed?.role ?? "buyer";
-    const name =
-      seed?.name ??
-      (email
-        .split("@")[0]
-        ?.replace(/[._]+/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase()) ||
-        (role === "seller" ? "Seller" : "Shopper"));
-
-    const nextUser: AuthUser = { name, email, role, ...readProfileExtras() };
-    localStorage.setItem(TOKEN_KEY, createFakeToken({ name, email, role }));
+  const loginWithSession = (
+    token: string,
+    rawUser: unknown,
+    fallbackRole: UserRole = "shopper"
+  ) => {
+    const nextUser = normalizeUser(rawUser, fallbackRole);
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
     setUser(nextUser);
     setIsLoginModalOpen(false);
     return nextUser;
@@ -111,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
     setUser(null);
     navigate("/login", { state: { passwordReset: false } });
   };
@@ -119,9 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser((prev) => {
       if (!prev) return prev;
       const next: AuthUser = { ...prev, ...updates };
-      const { name, email, role, ...extras } = next;
-      localStorage.setItem(TOKEN_KEY, createFakeToken({ name, email, role }));
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(extras));
+      localStorage.setItem(USER_KEY, JSON.stringify(next));
       return next;
     });
   };
@@ -137,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       isAuthenticated: !!user,
-      login,
+      loginWithSession,
       logout,
       updateProfile,
       isLoginModalOpen,

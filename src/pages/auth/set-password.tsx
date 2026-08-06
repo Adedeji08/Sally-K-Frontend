@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Lock } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Eye, EyeOff, Lock, ShieldAlert } from "lucide-react";
 import AuthShell from "../../layouts/auth-shell";
 import Input from "../../components/reusables/input";
 import Button from "../../components/reusables/button";
+import useRequest from "../../hooks/use-req";
+import { useToast } from "../../context/toast-context";
 
 interface SetPasswordValues {
   password: string;
@@ -13,11 +15,62 @@ interface SetPasswordValues {
 
 const SetPassword = () => {
   const navigate = useNavigate();
+  const toast = useToast();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get("token") ?? "";
   const { control, handleSubmit, watch } = useForm<SetPasswordValues>();
   const [viewPassword, setViewPassword] = useState(false);
+  const { loading, makeRequest } = useRequest("/auth/reset-password", "POST");
 
-  const onSubmit = () => {
-    // TODO: wire up to auth API — set new password
+  if (!token) {
+    return (
+      <AuthShell title="Invalid reset link">
+        <div className="flex flex-col items-center text-center gap-3 mb-6">
+          <span className="w-14 h-14 rounded-full bg-[#FDE6F1] flex items-center justify-center">
+            <ShieldAlert className="w-8 h-8 text-[#ED1280]" strokeWidth={2} />
+          </span>
+          <p className="text-[14px] text-[#65799A] max-w-[360px]">
+            This password reset link is invalid or has expired. Request a new one to continue.
+          </p>
+        </div>
+
+        <Button
+          size="lg"
+          variant="primary"
+          type="button"
+          className="font-normal"
+          onClick={() => navigate("/forgot-password")}
+        >
+          Request a new link
+        </Button>
+
+        <div className="flex items-center justify-center mt-5">
+          <Link to="/login" className="text-xs md:text-sm text-[#0867AC] hover:text-[#0867AC]">
+            Back to log in
+          </Link>
+        </div>
+      </AuthShell>
+    );
+  }
+
+  const onSubmit = async (values: SetPasswordValues) => {
+    const toastId = toast.loading("Resetting password...");
+    const [json, status] = await makeRequest({
+      token,
+      password: values.password,
+      confirm_password: values.confirmPassword,
+    });
+
+    if (status < 200 || status >= 300) {
+      toast.update(
+        toastId,
+        "error",
+        json?.message || "Couldn't reset your password. The link may have expired."
+      );
+      return;
+    }
+
+    toast.update(toastId, "success", "Password reset successfully.");
     navigate("/login", { state: { passwordReset: true } });
   };
 
@@ -81,9 +134,10 @@ const SetPassword = () => {
           size="lg"
           variant="primary"
           type="submit"
+          disabled={loading}
           className="font-normal mt-2"
         >
-          Reset password
+          {loading ? "Resetting..." : "Reset password"}
         </Button>
       </form>
     </AuthShell>

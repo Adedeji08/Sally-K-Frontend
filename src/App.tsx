@@ -1,6 +1,7 @@
 
 import "./App.css";
 import RoutesWrapper from "./routes/route-wrapper";
+import { ToastProvider } from "./context/toast-context";
 import { AuthProvider } from "./context/auth-context";
 import { CartProvider } from "./context/cart-context";
 import { WishlistProvider } from "./context/wishlist-context";
@@ -13,26 +14,28 @@ import LoginModal from "./components/auth/login-modal";
 
 function App() {
   return (
-    <AuthProvider>
-      <CartProvider>
-        <WishlistProvider>
-          <CheckoutProvider>
-            <OrderProvider>
-              <SupportProvider>
-                <SellerProvider>
-                  <SellerProductProvider>
-                    <div>
-                      <RoutesWrapper />
-                      <LoginModal />
-                    </div>
-                  </SellerProductProvider>
-                </SellerProvider>
-              </SupportProvider>
-            </OrderProvider>
-          </CheckoutProvider>
-        </WishlistProvider>
-      </CartProvider>
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <CartProvider>
+          <WishlistProvider>
+            <CheckoutProvider>
+              <OrderProvider>
+                <SupportProvider>
+                  <SellerProvider>
+                    <SellerProductProvider>
+                      <div>
+                        <RoutesWrapper />
+                        <LoginModal />
+                      </div>
+                    </SellerProductProvider>
+                  </SellerProvider>
+                </SupportProvider>
+              </OrderProvider>
+            </CheckoutProvider>
+          </WishlistProvider>
+        </CartProvider>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 

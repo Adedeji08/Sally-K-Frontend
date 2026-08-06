@@ -11,6 +11,7 @@ import ForgotPassword from "../pages/auth/forgot-password";
 import SetPassword from "../pages/auth/set-password";
 import SignupRole from "../pages/auth/signup-role";
 import Signup from "../pages/auth/signup";
+import VerifyEmail from "../pages/auth/verify-email";
 import OnboardingSuccess from "../pages/auth/onboarding-success";
 import StoreSetup from "../pages/seller-pages/store-setup";
 import Verification from "../pages/seller-pages/verification";
@@ -34,7 +35,7 @@ export default function ThemeRoutes() {
             )
         },
         {
-            path: "/set-password",
+            path: "/reset-password",
             element: (
                 <SetPassword />
             )
@@ -49,6 +50,12 @@ export default function ThemeRoutes() {
             path: "/signup/:role",
             element: (
                 <Signup />
+            )
+        },
+        {
+            path: "/verify-email",
+            element: (
+                <VerifyEmail />
             )
         },
         {
