@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 export interface CartItem {
   lineId: string;
-  productId: number;
+  productId: string;
   name: string;
   designer: string;
   price: number;
@@ -35,7 +35,7 @@ function readCartFromStorage(): CartItem[] {
   }
 }
 
-function buildLineId(productId: number, size?: string, color?: string) {
+function buildLineId(productId: string, size?: string, color?: string) {
   return `${productId}-${size ?? "onesize"}-${color ?? "default"}`;
 }
 

@@ -30,7 +30,7 @@ function seedReviews(): ProductReview[] {
   ];
 }
 
-export function readReviews(productId: number): ProductReview[] {
+export function readReviews(productId: string | number): ProductReview[] {
   try {
     const raw = localStorage.getItem(REVIEWS_KEY_PREFIX + productId);
     return raw ? JSON.parse(raw) : seedReviews();
@@ -39,6 +39,6 @@ export function readReviews(productId: number): ProductReview[] {
   }
 }
 
-export function writeReviews(productId: number, reviews: ProductReview[]) {
+export function writeReviews(productId: string | number, reviews: ProductReview[]) {
   localStorage.setItem(REVIEWS_KEY_PREFIX + productId, JSON.stringify(reviews));
 }

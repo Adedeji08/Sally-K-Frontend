@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../context/auth-context";
+import { useCurrentUser } from "../context/current-user-context";
 import { useSeller } from "../context/seller-context";
 
 const NAV_ITEMS = [
@@ -26,7 +27,12 @@ const NAV_ITEMS = [
 
 const SellerLayout = () => {
   const { isAuthenticated, user, logout } = useAuth();
-  const { storeProfile, isVerified, isSubscribed } = useSeller();
+  const { currentUser } = useCurrentUser();
+  const { isVerified, isSubscribed } = useSeller();
+  const sellerProfile = currentUser?.sellerProfile ?? null;
+  const brandName = sellerProfile?.brandName ?? user?.name ?? "Seller";
+  const fullName = currentUser?.fullName ?? user?.name ?? "";
+  const firstName = fullName.trim().split(/\s+/)[0] || "there";
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -55,14 +61,10 @@ const SellerLayout = () => {
         }`}
       >
         <div className="flex items-center justify-between px-5 py-5 border-b border-[#E7E1E4]">
-          <Link to="/seller/dashboard" className="flex items-center gap-2">
-            <div className="w-7 h-7 flex items-center justify-center shrink-0">
-              <div className="relative w-5 h-5">
-                <div className="absolute left-0 top-0 w-2 h-5 bg-black rounded-[1px]" />
-                <div className="absolute left-0 bottom-0 w-5 h-2 bg-black rounded-[1px]" />
-              </div>
-            </div>
-            <span className="text-[16px] font-semibold text-[#1F1F1F]">Sally-K Seller</span>
+          <Link to="/seller/dashboard" className="flex items-center gap-2 min-w-0">
+            <span className="text-[16px] font-semibold text-[#1F1F1F] truncate">
+              Welcome, {firstName}
+            </span>
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -94,9 +96,21 @@ const SellerLayout = () => {
         </nav>
 
         <div className="px-3 pb-3">
-          <div className="bg-[#F7F2F4] rounded-xl p-3 mb-2">
+          <div className="bg-[#F7F2F4] rounded-xl p-3 mb-2 flex items-start gap-2.5">
+            {sellerProfile?.logoUrl ? (
+              <img
+                src={sellerProfile.logoUrl}
+                alt={`${brandName} logo`}
+                className="w-9 h-9 rounded-lg object-cover border border-[#E7E1E4] shrink-0"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-lg bg-[#FDF1F7] text-[#ED1280] flex items-center justify-center text-[13px] font-semibold shrink-0">
+                {brandName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0">
             <p className="text-[13px] font-semibold text-[#121212] truncate">
-              {storeProfile?.brandName ?? user?.name}
+              {brandName}
             </p>
             <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
               <span
@@ -114,6 +128,7 @@ const SellerLayout = () => {
               >
                 {isSubscribed ? "Subscribed" : "No plan"}
               </span>
+            </div>
             </div>
           </div>
           <button

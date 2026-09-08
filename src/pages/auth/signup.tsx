@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Eye, EyeOff, Lock } from "lucide-react";
 import AuthShell from "../../layouts/auth-shell";
 import Input from "../../components/reusables/input";
 import Button from "../../components/reusables/button";
@@ -11,9 +13,12 @@ import { useToast } from "../../context/toast-context";
 interface SignupFormValues {
   full_name: string;
   email: string;
+  phone_number: string;
   password: string;
   confirm_password: string;
 }
+
+const PHONE_COUNTRY_CODE = "+234";
 
 const ROLE_COPY: Record<string, { label: string; steps: string[] }> = {
   shopper: { label: "shopper", steps: ["Account", "Done"] },
@@ -27,6 +32,8 @@ const Signup = () => {
   const toast = useToast();
   const { control, handleSubmit, watch } = useForm<SignupFormValues>();
   const { loading, makeRequest } = useRequest("/auth/signup", "POST");
+  const [viewPassword, setViewPassword] = useState(false);
+  const [viewConfirmPassword, setViewConfirmPassword] = useState(false);
 
   if (!role || !ROLE_COPY[role]) {
     return <Navigate to="/signup" replace />;
@@ -37,7 +44,11 @@ const Signup = () => {
 
   const onSubmit = async (values: SignupFormValues) => {
     const toastId = toast.loading("Creating your account...");
-    const [json, status] = await makeRequest({ ...values, role: resolvedRole });
+    const [json, status] = await makeRequest({
+      ...values,
+      phone_number: `${PHONE_COUNTRY_CODE}${values.phone_number}`,
+      role: resolvedRole.toLowerCase(),
+    });
 
     if (status < 200 || status >= 300) {
       toast.update(toastId, "error", json?.message || "Something went wrong creating your account.");
@@ -110,6 +121,31 @@ const Signup = () => {
         />
 
         <Controller
+          name="phone_number"
+          control={control}
+          rules={{
+            required: "Phone number is required",
+            pattern: {
+              value: /^\d{10}$/,
+              message: "Enter the 10 digits after +234. E.g, 8102814657",
+            },
+          }}
+          render={({ field, fieldState }) => (
+            <Input
+              label="Phone number"
+              placeholder="8102814657"
+              prefix={PHONE_COUNTRY_CODE}
+              value={field.value}
+              onChange={(event) =>
+                field.onChange(event.target.value.replace(/\D/g, "").slice(0, 10))
+              }
+              error={fieldState.error?.message}
+              autoComplete="off"
+            />
+          )}
+        />
+
+        <Controller
           name="password"
           control={control}
           rules={{
@@ -119,8 +155,17 @@ const Signup = () => {
           render={({ field, fieldState }) => (
             <Input
               label="Password"
-              type="password"
+              type={viewPassword ? "text" : "password"}
               value={field.value}
+              icon={<Lock className="w-4 h-4" strokeWidth={2} />}
+              rightIcon={
+                viewPassword ? (
+                  <EyeOff className="w-4 h-4" strokeWidth={2} />
+                ) : (
+                  <Eye className="w-4 h-4" strokeWidth={2} />
+                )
+              }
+              onRightIconClick={() => setViewPassword((prev) => !prev)}
               onChange={field.onChange}
               error={fieldState.error?.message}
               autoComplete="off"
@@ -139,8 +184,17 @@ const Signup = () => {
           render={({ field, fieldState }) => (
             <Input
               label="Confirm password"
-              type="password"
+              type={viewConfirmPassword ? "text" : "password"}
               value={field.value}
+              icon={<Lock className="w-4 h-4" strokeWidth={2} />}
+              rightIcon={
+                viewConfirmPassword ? (
+                  <EyeOff className="w-4 h-4" strokeWidth={2} />
+                ) : (
+                  <Eye className="w-4 h-4" strokeWidth={2} />
+                )
+              }
+              onRightIconClick={() => setViewConfirmPassword((prev) => !prev)}
               onChange={field.onChange}
               error={fieldState.error?.message}
               autoComplete="off"

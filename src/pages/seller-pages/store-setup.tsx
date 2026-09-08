@@ -6,8 +6,11 @@ import Input from "../../components/reusables/input";
 import MultiSelect from "../../components/reusables/multi-select";
 import Textarea from "../../components/reusables/textarea";
 import Button from "../../components/reusables/button";
-import FileDropzone from "../../components/reusables/file-dropzone";
+import ImageUploadField from "../../components/reusables/image-upload";
 import { useSeller } from "../../context/seller-context";
+import { useToast } from "../../context/toast-context";
+import useApi from "../../hooks/form-req";
+import useRequest from "../../hooks/use-req";
 
 interface StoreFormValues {
   brandName: string;
@@ -35,11 +38,58 @@ const StoreSetup = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { setStoreProfile } = useSeller();
+  const toast = useToast();
   const { control, handleSubmit } = useForm<StoreFormValues>();
   const accountState = (location.state ?? {}) as AccountState;
-  const [, setLogoFile] = useState<File | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const { makeRequest: uploadLogoRequest } = useApi("/uploads/brand-logo", "POST", {
+    Authorization: `Bearer ${localStorage.getItem("authToken") ?? ""}`,
+  });
+  const { loading: savingProfile, makeRequest: saveStoreProfile } = useRequest(
+    "/sellers/profile",
+    "PUT"
+  );
 
-  const onSubmit = (values: StoreFormValues) => {
+  const uploadLogo = async (file: File) => {
+    setLogoUploading(true);
+    const toastId = toast.loading("Uploading brand logo...");
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const [json, status] = await uploadLogoRequest(formData);
+    setLogoUploading(false);
+
+    if (status < 200 || status >= 300 || !json?.data?.url) {
+      toast.update(toastId, "error", json?.message || "Couldn't upload your logo. Try again.");
+      return null;
+    }
+
+    toast.update(toastId, "success", "Logo uploaded!");
+    return json.data.url as string;
+  };
+
+  const onSubmit = async (values: StoreFormValues) => {
+    const instagramUrl = values.instagram ? `https://instagram.com/${values.instagram}` : undefined;
+    const facebookUrl = values.facebook ? `https://facebook.com/${values.facebook}` : undefined;
+
+    const toastId = toast.loading("Setting up your brand profile...");
+    const [json, status] = await saveStoreProfile({
+      brandName: values.brandName,
+      categories: values.categories,
+      bio: values.bio,
+      logoUrl: logoUrl ?? undefined,
+      instagramUrl,
+      facebookUrl,
+    });
+
+    if (status < 200 || status >= 300) {
+      toast.update(toastId, "error", json?.message || "Couldn't save your brand profile. Try again.");
+      return;
+    }
+
+    toast.update(toastId, "success", "Brand profile saved!");
+
     const categoryLabels = values.categories.map(
       (value) => CATEGORY_OPTIONS.find((option) => option.value === value)?.label ?? value
     );
@@ -48,12 +98,13 @@ const StoreSetup = () => {
       brandName: values.brandName,
       categories: categoryLabels,
       bio: values.bio,
+      logoUrl: logoUrl ?? undefined,
       instagram: values.instagram,
       facebook: values.facebook,
     });
 
     navigate("/onboarding/success", {
-      state: { role: "seller", ...accountState, ...values },
+      state: { role: "seller", ...accountState, ...values, logoUrl },
     });
   };
 
@@ -125,11 +176,12 @@ const StoreSetup = () => {
           )}
         />
 
-        <FileDropzone
+        <ImageUploadField
           label="Brand logo"
           hint="PNG, JPG, GIF up to 10MB. Recommended: 500×500px."
           accept="image/*"
-          onFileSelect={setLogoFile}
+          onUpload={uploadLogo}
+          onUploaded={setLogoUrl}
         />
 
         <div>
@@ -141,8 +193,8 @@ const StoreSetup = () => {
               render={({ field }) => (
                 <Input
                   label="Instagram"
-                  prefix="https://"
-                  placeholder="instagram.com/yourbrand"
+                  prefix="instagram.com/"
+                  placeholder="yourbrand"
                   value={field.value}
                   onChange={field.onChange}
                   autoComplete="off"
@@ -156,8 +208,8 @@ const StoreSetup = () => {
               render={({ field }) => (
                 <Input
                   label="Facebook"
-                  prefix="https://"
-                  placeholder="facebook.com/yourbrand"
+                  prefix="facebook.com/"
+                  placeholder="yourbrand"
                   value={field.value}
                   onChange={field.onChange}
                   autoComplete="off"
@@ -167,8 +219,14 @@ const StoreSetup = () => {
           </div>
         </div>
 
-        <Button size="lg" variant="primary" type="submit" className="font-normal mt-2">
-          Continue
+        <Button
+          size="lg"
+          variant="primary"
+          type="submit"
+          disabled={logoUploading || savingProfile}
+          className="font-normal mt-2"
+        >
+          {logoUploading ? "Uploading logo..." : savingProfile ? "Saving..." : "Continue"}
         </Button>
       </form>
     </AuthShell>

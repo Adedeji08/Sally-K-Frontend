@@ -44,7 +44,7 @@ export default function ProductDetail() {
   const productsData = useProductsData();
 
   const product = useMemo(
-    () => productsData.find((p) => p.id === Number(id)),
+    () => productsData.find((p) => p.id === id),
     [productsData, id]
   );
 

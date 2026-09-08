@@ -20,6 +20,7 @@ const ForgotPassword = () => {
   const [submitted, setSubmitted] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const { loading, makeRequest } = useRequest("/auth/forgot-password", "POST");
+  const { loading: loader, makeRequest: resendLink } = useRequest("/auth/resend-verification", "POST");
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -46,6 +47,20 @@ const ForgotPassword = () => {
     if (ok) setSubmitted(true);
   };
 
+  const handleResend = async () => {
+    const email = getValues("email");
+    const toastId = toast.loading("Resending code...");
+    const [json, status] = await resendLink({ email });
+
+    if (status < 200 || status >= 300) {
+      toast.update(toastId, "error", json?.message || "Couldn't resend the code. Try again.");
+      return;
+    }
+
+    toast.update(toastId, "success", "A new reset link has been sent to your email.");
+    setCooldown(RESEND_COOLDOWN_SECONDS);
+  };
+
   if (submitted) {
     return (
       <AuthShell title="Check your email">
@@ -67,11 +82,11 @@ const ForgotPassword = () => {
             Didn't get it?{" "}
             <button
               type="button"
-              onClick={() => sendResetLink(getValues("email"))}
-              disabled={cooldown > 0 || loading}
+              onClick={handleResend}
+              disabled={cooldown > 0 || loader}
               className="text-[#0867AC] hover:text-[#0867AC] disabled:text-[#95959D] disabled:cursor-not-allowed"
             >
-              {cooldown > 0 ? `Resend in ${cooldown}s` : loading ? "Resending..." : "Resend link"}
+              {cooldown > 0 ? `Resend in ${cooldown}s` : loader ? "Resending..." : "Resend link"}
             </button>
           </label>
           <Link to="/login" className="text-xs md:text-sm text-[#0867AC] hover:text-[#0867AC]">

@@ -31,7 +31,7 @@ export default function Select({
   icon // Destructure label icon
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedValue, setSelectedValue] = useState(value || "");
+  const [, setSelectedValue] = useState(value || "");
   const [selectedLabel, setSelectedLabel] = useState("");
   const [selectedIcon, setSelectedIcon] = useState<React.ReactNode>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);

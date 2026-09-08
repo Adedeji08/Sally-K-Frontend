@@ -1,20 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { products } from "../data";
 import Navbar from "../../../layouts/navbar";
 import { useAuth } from "../../../context/auth-context";
 import { useCart } from "../../../context/cart-context";
 import { useWishlist } from "../../../context/wishlist-context";
-import { useSellerProducts } from "../../../context/seller-product-context";
-import { useSeller } from "../../../context/seller-context";
-import { getApprovalStatus } from "../../../utils/product-approval";
+import { useShopProducts } from "../../../context/shop-product-context";
+import { categoryLabel } from "../../../types/product";
 
 
 // ── Types ─────────────────────────────────────────────────────────────
 
 interface Product {
-    id: number;
+    id: string;
     name: string;
     designer: string;
     price: number;
@@ -30,38 +28,23 @@ type Category = 'All' | 'Women' | 'Men' | 'Shoes' | 'Bags' | 'Accessories';
 const WOMEN_CATEGORIES = new Set(['Dresses', 'Tops']);
 type SortOption = 'Most Popular' | 'Price: Low to High' | 'Price: High to Low' | 'Newest';
 
-// ── Helper function to validate and cast tag ─────────────────────────────
-
-const isValidTag = (tag: string | undefined): tag is 'New' | 'Trending' | 'Sale' => {
-    if (!tag) return false;
-    return ['New', 'Trending', 'Sale'].includes(tag);
-};
-
-// Cast products to Product[] with proper tag validation
-const typedProducts: Product[] = products.map(product => ({
-    ...product,
-    tag: product.tag && isValidTag(product.tag) ? product.tag as 'New' | 'Trending' | 'Sale' : undefined
-}));
-
-// Merges the static demo catalog with any products a logged-in seller has
-// published, so listings a seller creates actually show up for shoppers.
+// The shopper catalogue, straight from GET /products (see ShopProductProvider).
+// Mapped to the shape the grid / detail / wishlist screens already expect.
 export function useProductsData(): Product[] {
-    const { products: sellerProducts } = useSellerProducts();
-    const { storeProfile } = useSeller();
+    const { products } = useShopProducts();
 
-    return useMemo(() => {
-        const published: Product[] = sellerProducts
-            .filter(p => p.status === 'published' && p.submittedAt && getApprovalStatus(p.submittedAt) === 'approved')
-            .map(p => ({
+    return useMemo(
+        () =>
+            products.map((p) => ({
                 id: p.id,
                 name: p.name,
-                designer: storeProfile?.brandName ?? 'Independent Designer',
+                designer: p.seller?.brandName ?? 'Independent Designer',
                 price: p.price,
-                category: p.category,
+                category: categoryLabel(p.category),
                 image: p.images[0] ?? '',
-            }));
-        return [...typedProducts, ...published];
-    }, [sellerProducts, storeProfile]);
+            })),
+        [products]
+    );
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -817,7 +800,6 @@ export function UserDashboard() {
 
 // ── Exports for data and constants ─────────────────────────────────────────────
 
-export const productsData: Product[] = typedProducts;
 export const tagColors = TAG_COLORS;
 export const categories = CATEGORIES;
 export const sortOptions = SORT_OPTIONS;

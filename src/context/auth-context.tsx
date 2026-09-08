@@ -37,13 +37,24 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// Backend sends role as an uppercase string (e.g. "SELLER"), the app works
+// with lowercase internally — normalize case-insensitively so "SELLER",
+// "Seller", "seller" all resolve the same way, and fall back for anything
+// unrecognized (e.g. "BUYER") rather than throwing the user's role away.
+function normalizeRole(value: unknown): UserRole | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "seller") return "seller";
+  if (normalized === "shopper" || normalized === "buyer") return "shopper";
+  return undefined;
+}
+
 // The backend's field naming isn't known ahead of time (snake_case vs
 // camelCase, nested vs flat), so this accepts either and always produces a
 // consistent AuthUser for the rest of the app to consume.
 function normalizeUser(raw: unknown, fallbackRole: UserRole): AuthUser {
   const source = (raw ?? {}) as Record<string, unknown>;
-  const roleValue = source.role;
-  const role: UserRole = roleValue === "seller" || roleValue === "shopper" ? roleValue : fallbackRole;
+  const role: UserRole = normalizeRole(source.role) ?? fallbackRole;
 
   const readString = (...keys: string[]): string | undefined => {
     for (const key of keys) {

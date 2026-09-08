@@ -1,23 +1,29 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Clock, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { ClipLoader } from "react-spinners";
 import { useSellerProducts } from "../../context/seller-product-context";
-import { getApprovalStatus } from "../../utils/product-approval";
-
-const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  draft: { label: "Draft", className: "bg-stone-100 text-stone-500" },
-  pending: { label: "Awaiting Approval", className: "bg-amber-50 text-amber-600" },
-  approved: { label: "Live", className: "bg-emerald-50 text-emerald-600" },
-};
+import { useToast } from "../../context/toast-context";
+import { categoryLabel } from "../../types/product";
 
 export default function SellerProductView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getProduct, deleteProduct } = useSellerProducts();
+  const toast = useToast();
+  const { getProduct, deleteProduct, loading, loaded } = useSellerProducts();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
 
-  const product = id ? getProduct(Number(id)) : undefined;
+  const product = id ? getProduct(id) : undefined;
+
+  if (!product && (loading || !loaded)) {
+    return (
+      <div className="max-w-3xl mx-auto flex justify-center py-20">
+        <ClipLoader size={28} color="#ED1280" />
+      </div>
+    );
+  }
 
   if (!product) {
     return (
@@ -31,13 +37,23 @@ export default function SellerProductView() {
     );
   }
 
-  const statusKey =
-    product.status === "draft"
-      ? "draft"
-      : product.submittedAt
-      ? getApprovalStatus(product.submittedAt)
-      : "pending";
-  const badge = STATUS_BADGE[statusKey];
+  const badge = product.isActive
+    ? { label: "Live", className: "bg-emerald-50 text-emerald-600" }
+    : { label: "Inactive", className: "bg-stone-100 text-stone-500" };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    const done = await deleteProduct(product.id);
+    setDeleting(false);
+
+    if (!done) {
+      toast.error("Couldn't delete that product. Please try again.");
+      return;
+    }
+
+    toast.success("Product deleted.");
+    navigate("/seller/products");
+  };
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -87,23 +103,8 @@ export default function SellerProductView() {
           </span>
 
           <h1 className="text-2xl font-semibold text-[#121212] mb-1">{product.name}</h1>
-          <p className="text-sm text-[#65799A] mb-3">{product.category}</p>
+          <p className="text-sm text-[#65799A] mb-3">{categoryLabel(product.category)}</p>
           <p className="text-2xl font-bold text-[#121212] mb-4">₦{product.price.toFixed(2)}</p>
-
-          {statusKey === "pending" && (
-            <div className="flex items-start gap-3 bg-[#FFF7ED] border border-[#FED7AA] rounded-xl p-4 mb-5">
-              <Clock className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" strokeWidth={2} />
-              <div>
-                <p className="text-[13px] font-semibold text-[#92400E]">
-                  Awaiting approval
-                </p>
-                <p className="text-[12px] text-[#92400E]/80 mt-0.5">
-                  Your product is being reviewed by our team before it goes live in the
-                  shop. This usually only takes a moment.
-                </p>
-              </div>
-            </div>
-          )}
 
           <div className="grid grid-cols-2 gap-4 mb-5">
             <div>
@@ -114,12 +115,6 @@ export default function SellerProductView() {
               <p className="text-[12px] text-[#65799A] mb-1">Sizes</p>
               <p className="text-sm font-semibold text-[#121212]">
                 {product.sizes.join(", ") || "—"}
-              </p>
-            </div>
-            <div className="col-span-2">
-              <p className="text-[12px] text-[#65799A] mb-1">Colors</p>
-              <p className="text-sm font-semibold text-[#121212]">
-                {product.colors.join(", ") || "—"}
               </p>
             </div>
           </div>
@@ -169,13 +164,11 @@ export default function SellerProductView() {
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  deleteProduct(product.id);
-                  navigate("/seller/products");
-                }}
-                className="flex-1 px-4 py-2.5 rounded-full text-sm font-semibold text-white bg-rose-500 hover:bg-rose-600 transition-colors"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 px-4 py-2.5 rounded-full text-sm font-semibold text-white bg-rose-500 hover:bg-rose-600 transition-colors disabled:opacity-60"
               >
-                Delete
+                {deleting ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>

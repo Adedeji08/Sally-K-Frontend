@@ -4,12 +4,17 @@ import Textarea from "../reusables/textarea";
 import Select from "../reusables/select";
 import MultiSelect from "../reusables/multi-select";
 import Button from "../reusables/button";
+import ProductImageInput from "./product-image-input";
+import useApi from "../../hooks/form-req";
+import { useToast } from "../../context/toast-context";
 import type { SellerProductInput } from "../../context/seller-product-context";
+import { toApiCategory } from "../../types/product";
 
 interface ProductFormProps {
   initialValues?: Partial<SellerProductInput>;
-  onSubmit: (input: SellerProductInput) => void;
+  onSubmit: (input: SellerProductInput) => void | Promise<void>;
   submitLabel?: string;
+  submitting?: boolean;
 }
 
 interface ProductFormValues {
@@ -19,22 +24,16 @@ interface ProductFormValues {
   price: string;
   stock: string;
   sizes: string[];
-  colors: string;
   image1: string;
   image2: string;
   image3: string;
   image4: string;
-  status: "published" | "draft";
 }
 
-const CATEGORY_OPTIONS = [
-  { value: "Dresses", label: "Dresses" },
-  { value: "Tops", label: "Tops" },
-  { value: "Men", label: "Men" },
-  { value: "Shoes", label: "Shoes" },
-  { value: "Bags", label: "Bags" },
-  { value: "Accessories", label: "Accessories" },
-];
+// Option value is what the API wants ("dresses"); label is what the seller sees.
+const CATEGORY_OPTIONS = ["Dresses", "Tops", "Men", "Shoes", "Bags", "Accessories"].map(
+  (label) => ({ value: toApiCategory(label), label })
+);
 
 const SIZE_OPTIONS = [
   { value: "XS", label: "XS" },
@@ -45,32 +44,50 @@ const SIZE_OPTIONS = [
   { value: "One Size", label: "One Size" },
 ];
 
-const STATUS_OPTIONS = [
-  { value: "published", label: "Submit for approval" },
-  { value: "draft", label: "Save as draft" },
-];
-
 const IMAGE_FIELDS = ["image1", "image2", "image3", "image4"] as const;
+
+const PRODUCT_IMAGE_ENDPOINT = "/uploads/product-image";
 
 export default function ProductForm({
   initialValues,
   onSubmit,
   submitLabel = "Publish Product",
+  submitting = false,
 }: ProductFormProps) {
+  const toast = useToast();
+  const { makeRequest: uploadImageRequest } = useApi(PRODUCT_IMAGE_ENDPOINT, "POST", {
+    Authorization: `Bearer ${localStorage.getItem("authToken") ?? ""}`,
+  });
+
+  // Only called when the seller picks a file from their computer. A pasted URL
+  // skips this entirely and is sent to the payload as-is.
+  const uploadImage = async (file: File): Promise<string | null> => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const [json, status] = await uploadImageRequest(formData);
+
+    if (status < 200 || status >= 300 || !json?.data?.url) {
+      toast.error(json?.message || "Couldn't upload that image. Try again.");
+      return null;
+    }
+
+    return json.data.url as string;
+  };
+
   const { control, handleSubmit } = useForm<ProductFormValues>({
     defaultValues: {
       name: initialValues?.name ?? "",
       description: initialValues?.description ?? "",
-      category: initialValues?.category ?? "",
+      // The API returns categories upper-cased; match them back to an option value.
+      category: initialValues?.category ? toApiCategory(initialValues.category) : "",
       price: initialValues?.price !== undefined ? String(initialValues.price) : "",
       stock: initialValues?.stock !== undefined ? String(initialValues.stock) : "",
       sizes: initialValues?.sizes ?? [],
-      colors: initialValues?.colors?.join(", ") ?? "",
       image1: initialValues?.images?.[0] ?? "",
       image2: initialValues?.images?.[1] ?? "",
       image3: initialValues?.images?.[2] ?? "",
       image4: initialValues?.images?.[3] ?? "",
-      status: initialValues?.status ?? "published",
     },
   });
 
@@ -78,21 +95,15 @@ export default function ProductForm({
     const images = [values.image1, values.image2, values.image3, values.image4].filter(
       (url) => url.trim().length > 0
     );
-    const colors = values.colors
-      .split(",")
-      .map((c) => c.trim())
-      .filter(Boolean);
 
     onSubmit({
-      name: values.name,
-      description: values.description,
-      category: values.category,
+      name: values.name.trim(),
+      description: values.description.trim(),
+      category: toApiCategory(values.category),
       price: Number(values.price) || 0,
       stock: Number(values.stock) || 0,
       sizes: values.sizes,
-      colors,
       images,
-      status: values.status,
     });
   };
 
@@ -166,40 +177,24 @@ export default function ProductForm({
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Controller
-          name="stock"
-          control={control}
-          rules={{
-            required: "Stock quantity is required",
-            pattern: { value: /^\d+$/, message: "Enter a whole number" },
-          }}
-          render={({ field, fieldState }) => (
-            <Input
-              label="Stock quantity"
-              placeholder="0"
-              value={field.value}
-              onChange={field.onChange}
-              error={fieldState.error?.message}
-              autoComplete="off"
-            />
-          )}
-        />
-
-        <Controller
-          name="colors"
-          control={control}
-          render={({ field }) => (
-            <Input
-              label="Colors"
-              placeholder="e.g. Black, Red, Navy"
-              value={field.value}
-              onChange={field.onChange}
-              autoComplete="off"
-            />
-          )}
-        />
-      </div>
+      <Controller
+        name="stock"
+        control={control}
+        rules={{
+          required: "Stock quantity is required",
+          pattern: { value: /^\d+$/, message: "Enter a whole number" },
+        }}
+        render={({ field, fieldState }) => (
+          <Input
+            label="Stock quantity"
+            placeholder="0"
+            value={field.value}
+            onChange={field.onChange}
+            error={fieldState.error?.message}
+            autoComplete="off"
+          />
+        )}
+      />
 
       <Controller
         name="sizes"
@@ -218,7 +213,10 @@ export default function ProductForm({
       />
 
       <div className="flex flex-col gap-3">
-        <p className="text-[14px] font-bold text-[#121212]">Product images (URL)</p>
+        <p className="text-[14px] font-bold text-[#121212]">Product images</p>
+        <p className="text-[12px] text-[#65799A] -mt-1">
+          Paste an image link or upload one from your computer.
+        </p>
         {IMAGE_FIELDS.map((name, index) => (
           <Controller
             key={name}
@@ -226,56 +224,26 @@ export default function ProductForm({
             control={control}
             rules={index === 0 ? { required: "At least one image is required" } : undefined}
             render={({ field, fieldState }) => (
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-[#F2E8ED] overflow-hidden shrink-0 flex items-center justify-center">
-                  {field.value ? (
-                    <img
-                      src={field.value}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.visibility = "hidden";
-                      }}
-                    />
-                  ) : (
-                    <span className="text-[10px] text-[#95959D]">{index + 1}</span>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <Input
-                    placeholder={`Image ${index + 1} URL${index === 0 ? "" : " (optional)"}`}
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={fieldState.error?.message}
-                    autoComplete="off"
-                  />
-                </div>
-              </div>
+              <ProductImageInput
+                index={index}
+                value={field.value}
+                onChange={field.onChange}
+                onUpload={uploadImage}
+                error={fieldState.error?.message}
+              />
             )}
           />
         ))}
       </div>
 
-      <div>
-        <Controller
-          name="status"
-          control={control}
-          render={({ field }) => (
-            <Select
-              label="Visibility"
-              options={STATUS_OPTIONS}
-              value={field.value}
-              onChange={field.onChange}
-            />
-          )}
-        />
-        <p className="text-[12px] text-[#65799A] mt-1.5">
-          Submitted products are reviewed before they appear in the shop.
-        </p>
-      </div>
-
-      <Button size="lg" variant="primary" type="submit" className="font-normal mt-2">
-        {submitLabel}
+      <Button
+        size="lg"
+        variant="primary"
+        type="submit"
+        disabled={submitting}
+        className="font-normal mt-2"
+      >
+        {submitting ? "Saving..." : submitLabel}
       </Button>
     </form>
   );

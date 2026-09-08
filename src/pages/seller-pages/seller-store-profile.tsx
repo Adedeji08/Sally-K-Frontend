@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CircleCheck } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import Input from "../../components/reusables/input";
 import MultiSelect from "../../components/reusables/multi-select";
 import Textarea from "../../components/reusables/textarea";
 import Button from "../../components/reusables/button";
-import { useSeller } from "../../context/seller-context";
+import ImageUploadField from "../../components/reusables/image-upload";
+import { useCurrentUser } from "../../context/current-user-context";
+import { useToast } from "../../context/toast-context";
+import useApi from "../../hooks/form-req";
+import useRequest from "../../hooks/use-req";
 
 interface StoreFormValues {
   brandName: string;
@@ -16,33 +20,124 @@ interface StoreFormValues {
 }
 
 const CATEGORY_OPTIONS = [
-  { value: "Dresses", label: "Dresses" },
-  { value: "Tops", label: "Tops" },
-  { value: "Men", label: "Men" },
-  { value: "Shoes", label: "Shoes" },
-  { value: "Bags", label: "Bags" },
-  { value: "Accessories", label: "Accessories" },
+  { value: "dresses", label: "Dresses" },
+  { value: "tops", label: "Tops" },
+  { value: "men", label: "Men" },
+  { value: "shoes", label: "Shoes" },
+  { value: "bags", label: "Bags" },
+  { value: "accessories", label: "Accessories" },
 ];
 
+// A social handle: letters, numbers, dots, underscores, hyphens (no spaces or slashes).
+const HANDLE_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+// Accepts a full profile link OR a bare handle and returns just the handle:
+//   "https://www.instagram.com/eben_dami/" -> "eben_dami"
+//   "web.facebook.com/adedeji.i.damilola"  -> "adedeji.i.damilola"
+//   "yourbrand"                             -> "yourbrand"
+const toHandle = (value: string | null | undefined) => {
+  if (!value) return "";
+  return value
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/^(?:www\.|web\.|m\.)+/i, "")
+    .replace(/^(?:instagram\.com|facebook\.com|fb\.com|fb\.me)\//i, "")
+    .replace(/[/?#].*$/, "")
+    .trim();
+};
+
+// Only collapse to a handle when the value actually looks like a pasted URL, so
+// the seller can still type a handle that contains dots (e.g. "a.b.c").
+const looksLikeUrl = (value: string) =>
+  /https?:\/\/|(?:instagram|facebook|fb)\.(?:com|me)\//i.test(value);
+
 export default function SellerStoreProfile() {
-  const { storeProfile, setStoreProfile } = useSeller();
+  const { currentUser, loading: loadingUser, refetch } = useCurrentUser();
+  const toast = useToast();
   const [saved, setSaved] = useState(false);
 
-  const { control, handleSubmit } = useForm<StoreFormValues>({
-    defaultValues: {
-      brandName: storeProfile?.brandName ?? "",
-      categories: storeProfile?.categories ?? [],
-      bio: storeProfile?.bio ?? "",
-      instagram: storeProfile?.instagram ?? "",
-      facebook: storeProfile?.facebook ?? "",
-    },
+  const sellerProfile = currentUser?.sellerProfile ?? null;
+
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+
+  const { makeRequest: uploadLogoRequest } = useApi("/uploads/brand-logo", "POST", {
+    Authorization: `Bearer ${localStorage.getItem("authToken") ?? ""}`,
+  });
+  const { loading: savingProfile, makeRequest: updateStoreProfile } = useRequest(
+    "/sellers/profile",
+    "PUT"
+  );
+
+  const { control, handleSubmit, reset } = useForm<StoreFormValues>({
+    defaultValues: { brandName: "", categories: [], bio: "", instagram: "", facebook: "" },
   });
 
-  const onSubmit = (values: StoreFormValues) => {
-    setStoreProfile(values);
+  // Hydrate the form from /auth/me once it lands (and again after a save-refetch).
+  useEffect(() => {
+    if (!sellerProfile) return;
+    reset({
+      brandName: sellerProfile.brandName ?? "",
+      categories: (sellerProfile.categories ?? []).map((category) => category.toLowerCase()),
+      bio: sellerProfile.bio ?? "",
+      instagram: toHandle(sellerProfile.instagramUrl),
+      facebook: toHandle(sellerProfile.facebookUrl),
+    });
+    setLogoUrl(sellerProfile.logoUrl ?? null);
+  }, [sellerProfile, reset]);
+
+  const uploadLogo = async (file: File) => {
+    setLogoUploading(true);
+    const toastId = toast.loading("Uploading brand logo...");
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const [json, status] = await uploadLogoRequest(formData);
+    setLogoUploading(false);
+
+    if (status < 200 || status >= 300 || !json?.data?.url) {
+      toast.update(toastId, "error", json?.message || "Couldn't upload your logo. Try again.");
+      return null;
+    }
+
+    toast.update(toastId, "success", "Logo uploaded!");
+    return json.data.url as string;
+  };
+
+  const onSubmit = async (values: StoreFormValues) => {
+    const toastId = toast.loading("Saving your store profile...");
+    const [json, status] = await updateStoreProfile({
+      brandName: values.brandName,
+      categories: values.categories,
+      bio: values.bio,
+      logoUrl: logoUrl ?? undefined,
+      instagramUrl: values.instagram ? `https://instagram.com/${toHandle(values.instagram)}` : "",
+      facebookUrl: values.facebook ? `https://facebook.com/${toHandle(values.facebook)}` : "",
+    });
+
+    if (status < 200 || status >= 300) {
+      toast.update(
+        toastId,
+        "error",
+        json?.message || "Couldn't update your store profile. Try again."
+      );
+      return;
+    }
+
+    toast.update(toastId, "success", "Store profile updated!");
+    await refetch();
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
+
+  if (loadingUser && !sellerProfile) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="h-10 w-48 rounded-lg bg-white/70 animate-pulse mb-4" />
+        <div className="h-[420px] rounded-2xl bg-white/70 animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -75,6 +170,15 @@ export default function SellerStoreProfile() {
               autoComplete="off"
             />
           )}
+        />
+
+        <ImageUploadField
+          label="Brand logo"
+          hint="PNG, JPG, GIF up to 10MB. Recommended: 500×500px."
+          accept="image/*"
+          initialUrl={logoUrl}
+          onUpload={uploadLogo}
+          onUploaded={setLogoUrl}
         />
 
         <Controller
@@ -113,13 +217,23 @@ export default function SellerStoreProfile() {
           <Controller
             name="instagram"
             control={control}
-            render={({ field }) => (
+            rules={{
+              required: "Instagram URL is required",
+              validate: (value) =>
+                HANDLE_PATTERN.test(toHandle(value)) ||
+                "Paste your Instagram profile link or handle",
+            }}
+            render={({ field, fieldState }) => (
               <Input
                 label="Instagram"
-                prefix="https://"
-                placeholder="instagram.com/yourbrand"
+                prefix="instagram.com/"
+                placeholder="yourbrand or profile link"
                 value={field.value}
-                onChange={field.onChange}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  field.onChange(looksLikeUrl(next) ? toHandle(next) : next);
+                }}
+                error={fieldState.error?.message}
                 autoComplete="off"
               />
             )}
@@ -128,21 +242,37 @@ export default function SellerStoreProfile() {
           <Controller
             name="facebook"
             control={control}
-            render={({ field }) => (
+            rules={{
+              required: "Facebook URL is required",
+              validate: (value) =>
+                HANDLE_PATTERN.test(toHandle(value)) ||
+                "Paste your Facebook profile link or handle",
+            }}
+            render={({ field, fieldState }) => (
               <Input
                 label="Facebook"
-                prefix="https://"
-                placeholder="facebook.com/yourbrand"
+                prefix="facebook.com/"
+                placeholder="yourbrand or profile link"
                 value={field.value}
-                onChange={field.onChange}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  field.onChange(looksLikeUrl(next) ? toHandle(next) : next);
+                }}
+                error={fieldState.error?.message}
                 autoComplete="off"
               />
             )}
           />
         </div>
 
-        <Button size="md" variant="primary" type="submit" className="font-normal mt-2">
-          Save Changes
+        <Button
+          size="md"
+          variant="primary"
+          type="submit"
+          disabled={logoUploading || savingProfile}
+          className="font-normal mt-2"
+        >
+          {logoUploading ? "Uploading logo..." : savingProfile ? "Saving..." : "Save Changes"}
         </Button>
       </form>
     </div>
