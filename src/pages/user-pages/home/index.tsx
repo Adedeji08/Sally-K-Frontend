@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ClipLoader } from "react-spinners";
 import Navbar from "../../../layouts/navbar";
 import { useAuth } from "../../../context/auth-context";
 import { useCart } from "../../../context/cart-context";
 import { useWishlist } from "../../../context/wishlist-context";
 import { useShopProducts } from "../../../context/shop-product-context";
+import useRequest from "../../../hooks/use-req";
+import type { ApiProduct } from "../../../types/product";
 import { categoryLabel } from "../../../types/product";
 
 
@@ -24,27 +27,33 @@ interface Product {
 
 type Category = 'All' | 'Women' | 'Men' | 'Shoes' | 'Bags' | 'Accessories';
 
-// Categories whose raw product.category values roll up into the "Women" tab.
-const WOMEN_CATEGORIES = new Set(['Dresses', 'Tops']);
+// Tab -> API category values for GET /products?category=. "Women" rolls up two.
+const CATEGORY_QUERY: Record<Category, string | undefined> = {
+    All: undefined,
+    Women: 'dresses,tops',
+    Men: 'men',
+    Shoes: 'shoes',
+    Bags: 'bags',
+    Accessories: 'accessories',
+};
 type SortOption = 'Most Popular' | 'Price: Low to High' | 'Price: High to Low' | 'Newest';
 
 // The shopper catalogue, straight from GET /products (see ShopProductProvider).
 // Mapped to the shape the grid / detail / wishlist screens already expect.
+function toCardProduct(p: ApiProduct): Product {
+    return {
+        id: p.id,
+        name: p.name,
+        designer: p.seller?.brandName ?? 'Independent Designer',
+        price: p.price,
+        category: categoryLabel(p.category),
+        image: p.images[0] ?? '',
+    };
+}
+
 export function useProductsData(): Product[] {
     const { products } = useShopProducts();
-
-    return useMemo(
-        () =>
-            products.map((p) => ({
-                id: p.id,
-                name: p.name,
-                designer: p.seller?.brandName ?? 'Independent Designer',
-                price: p.price,
-                category: categoryLabel(p.category),
-                image: p.images[0] ?? '',
-            })),
-        [products]
-    );
+    return useMemo(() => products.map(toCardProduct), [products]);
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -58,16 +67,12 @@ const TAG_COLORS: Record<string, string> = {
 const CATEGORIES: Category[] = ['All', 'Women', 'Men', 'Shoes', 'Bags', 'Accessories'];
 const SORT_OPTIONS: SortOption[] = ['Most Popular', 'Price: Low to High', 'Price: High to Low', 'Newest'];
 
-const CLOTHING_CATEGORIES = new Set(['Dresses', 'Tops', 'Men']);
-const CLOTHING_SIZES = ['XS', 'S', 'M', 'L', 'XL'];
-const SHOE_SIZES = ['38', '39', '40', '41', '42', '43'];
-const ALL_SIZES = [...CLOTHING_SIZES, ...SHOE_SIZES, 'One Size'];
-
-function getSizesForCategory(category: string): string[] {
-    if (CLOTHING_CATEGORIES.has(category)) return CLOTHING_SIZES;
-    if (category === 'Shoes') return SHOE_SIZES;
-    return ['One Size'];
-}
+const SORT_QUERY: Record<SortOption, string> = {
+    'Most Popular': 'popular',
+    'Price: Low to High': 'price_asc',
+    'Price: High to Low': 'price_desc',
+    'Newest': 'newest',
+};
 
 interface PriceBucket {
     label: string;
@@ -76,11 +81,65 @@ interface PriceBucket {
 }
 
 const PRICE_BUCKETS: PriceBucket[] = [
-    { label: 'Under ₦100', min: 0, max: 100 },
-    { label: '₦100 - ₦250', min: 100, max: 250 },
-    { label: '₦250 - ₦500', min: 250, max: 500 },
-    { label: '₦500+', min: 500, max: Infinity },
+    { label: 'Under ₦10,000', min: 0, max: 10000 },
+    { label: '₦10,000 - ₦50,000', min: 10000, max: 50000 },
+    { label: '₦50,000 - ₦100,000', min: 50000, max: 100000 },
+    { label: '₦100,000+', min: 100000, max: Infinity },
 ];
+
+interface FilterOptions {
+    sizes: string[];
+    sellers: { id: string; brandName: string }[];
+}
+
+// GET /products with the grid's filters. Search is debounced; responses from
+// superseded requests are dropped so fast clicking can't show stale results.
+function useStorefrontProducts(params: Record<string, string>, skip: boolean) {
+    const { makeRequest } = useRequest('/products', 'GET');
+    const [products, setProducts] = useState<Product[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+    const latest = useRef(0);
+    const key = JSON.stringify(params);
+
+    useEffect(() => {
+        if (skip) return;
+        const requestId = ++latest.current;
+        const timer = setTimeout(async () => {
+            setLoading(true);
+            const [json, status] = await makeRequest(undefined, JSON.parse(key));
+            if (requestId !== latest.current) return;
+            setLoading(false);
+            const ok = status >= 200 && status < 300 && Array.isArray(json?.data);
+            setError(!ok);
+            if (ok) setProducts((json.data as ApiProduct[]).map(toCardProduct));
+        }, 300);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [key, skip]);
+
+    return { products, loading, error };
+}
+
+// GET /products/filters — the sizes and designers actually listed in this tab.
+function useFilterOptions(category: string | undefined) {
+    const { makeRequest } = useRequest('/products/filters', 'GET');
+    const [options, setOptions] = useState<FilterOptions>({ sizes: [], sellers: [] });
+
+    useEffect(() => {
+        let cancelled = false;
+        makeRequest(undefined, category ? { category } : undefined).then(([json, status]) => {
+            if (cancelled || status < 200 || status >= 300 || !json?.data) return;
+            setOptions({ sizes: json.data.sizes ?? [], sellers: json.data.sellers ?? [] });
+        });
+        return () => {
+            cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [category]);
+
+    return options;
+}
 
 // ── Hero Banner ───────────────────────────────────────────
 
@@ -156,9 +215,9 @@ function HeroBanner() {
             </div>
             <div className="relative z-10 flex gap-8 px-6 sm:px-8 md:px-12 pb-8 flex-wrap">
                 {[
-                    ['2,400+', 'Products'],
+                    ['20+', 'Products'],
                     ['180+', 'Designers'],
-                    ['40+', 'Countries']
+                    ['1+', 'Countries']
                 ].map(([value, label]) => (
                     <div key={label} className="text-white">
                         <div className="text-xl sm:text-2xl font-bold font-serif">{value}</div>
@@ -388,7 +447,6 @@ function ProductCard({ product }: ProductCardProps) {
 // ── Product Grid ──────────────────────────────────────────
 
 function ProductGrid() {
-    const allProducts = useProductsData();
     const [searchParams, setSearchParams] = useSearchParams();
 
     const initialCategory = (() => {
@@ -403,6 +461,7 @@ function ProductGrid() {
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [priceBucket, setPriceBucket] = useState<string | null>(null);
     const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+    // Seller ids — the API filters by seller, not brand name.
     const [selectedDesigners, setSelectedDesigners] = useState<string[]>([]);
 
     const clearTagFilter = () => {
@@ -441,69 +500,37 @@ function ProductGrid() {
         setSelectedDesigners([]);
     };
 
-    const designers = useMemo(
-        () => Array.from(new Set(allProducts.map(p => p.designer))).sort(),
-        [allProducts]
+    const categoryQuery = CATEGORY_QUERY[cat];
+    const filterOptions = useFilterOptions(categoryQuery);
+
+    // Keep selected options visible even if the new tab doesn't list them, so
+    // they can still be un-ticked.
+    const sizeOptions = useMemo(
+        () => [...filterOptions.sizes, ...selectedSizes.filter(s => !filterOptions.sizes.includes(s))],
+        [filterOptions.sizes, selectedSizes]
     );
 
-    const filtered = useMemo(() => {
-        let result = [...allProducts];
+    // "New Arrivals" in the nav is just the newest-first sort. There's no sale
+    // pricing in the API yet, so "Sale" has nothing to show.
+    const effectiveSort = tagFilter === 'New' ? 'Newest' : sort;
+    const noResultsForTag = !!tagFilter && tagFilter !== 'New';
 
-        if (cat !== 'All') {
-            result = result.filter(p =>
-                cat === 'Women' ? WOMEN_CATEGORIES.has(p.category) : p.category === cat
-            );
+    const queryParams = useMemo(() => {
+        const params: Record<string, string> = { sort: SORT_QUERY[effectiveSort] };
+        if (categoryQuery) params.category = categoryQuery;
+        if (search.trim()) params.search = search.trim();
+        const bucket = PRICE_BUCKETS.find(b => b.label === priceBucket);
+        if (bucket) {
+            params.minPrice = String(bucket.min);
+            if (Number.isFinite(bucket.max)) params.maxPrice = String(bucket.max);
         }
+        if (selectedSizes.length) params.sizes = selectedSizes.join(',');
+        if (selectedDesigners.length) params.sellers = selectedDesigners.join(',');
+        return params;
+    }, [effectiveSort, categoryQuery, search, priceBucket, selectedSizes, selectedDesigners]);
 
-        if (tagFilter) {
-            result = result.filter(p => p.tag === tagFilter);
-        }
-
-        if (search.trim()) {
-            const query = search.toLowerCase();
-            result = result.filter(p =>
-                p.name.toLowerCase().includes(query) ||
-                p.designer.toLowerCase().includes(query) ||
-                p.category.toLowerCase().includes(query)
-            );
-        }
-
-        if (priceBucket) {
-            const bucket = PRICE_BUCKETS.find(b => b.label === priceBucket);
-            if (bucket) {
-                result = result.filter(p => p.price >= bucket.min && p.price <= bucket.max);
-            }
-        }
-
-        if (selectedSizes.length) {
-            result = result.filter(p =>
-                getSizesForCategory(p.category).some(s => selectedSizes.includes(s))
-            );
-        }
-
-        if (selectedDesigners.length) {
-            result = result.filter(p => selectedDesigners.includes(p.designer));
-        }
-
-        switch (sort) {
-            case 'Price: Low to High':
-                result.sort((a, b) => a.price - b.price);
-                break;
-            case 'Price: High to Low':
-                result.sort((a, b) => b.price - a.price);
-                break;
-            case 'Newest':
-                result.sort((a, b) => (a.tag === 'New' ? -1 : b.tag === 'New' ? 1 : 0));
-                break;
-            default:
-                result.sort((a, b) => {
-                    if (!!a.sponsored !== !!b.sponsored) return a.sponsored ? -1 : 1;
-                    return a.tag === 'Trending' ? -1 : b.tag === 'Trending' ? 1 : 0;
-                });
-        }
-
-        return result;
-    }, [allProducts, search, cat, tagFilter, sort, priceBucket, selectedSizes, selectedDesigners]);
+    const { products, loading, error } = useStorefrontProducts(queryParams, noResultsForTag);
+    const filtered = noResultsForTag ? [] : products;
 
     return (
         <main className="max-w-7xl mx-auto px-6 py-10 md:py-12">
@@ -612,7 +639,8 @@ function ProductGrid() {
                 <div className="flex items-center gap-2">
                     <span className="text-sm text-stone-400">{filtered.length} items</span>
                     <select
-                        value={sort}
+                        value={effectiveSort}
+                        disabled={tagFilter === 'New'}
                         onChange={e => setSort(e.target.value as SortOption)}
                         className="text-sm font-medium text-stone-700 border border-stone-200 rounded-full px-4 py-2 outline-none bg-white focus:border-rose-400"
                     >
@@ -648,7 +676,10 @@ function ProductGrid() {
                         <div>
                             <p className="text-sm font-semibold text-stone-800 mb-3">Size</p>
                             <div className="flex flex-wrap gap-2">
-                                {ALL_SIZES.map(size => (
+                                {sizeOptions.length === 0 && (
+                                    <p className="text-sm text-stone-400">No sizes listed yet.</p>
+                                )}
+                                {sizeOptions.map(size => (
                                     <button
                                         key={size}
                                         onClick={() => toggleSize(size)}
@@ -668,15 +699,18 @@ function ProductGrid() {
                         <div>
                             <p className="text-sm font-semibold text-stone-800 mb-3">Designer</p>
                             <div className="flex flex-col gap-2 max-h-40 overflow-y-auto pr-1">
-                                {designers.map(designer => (
-                                    <label key={designer} className="flex items-center gap-2 text-sm text-stone-600 cursor-pointer">
+                                {filterOptions.sellers.length === 0 && (
+                                    <p className="text-sm text-stone-400">No designers listed yet.</p>
+                                )}
+                                {filterOptions.sellers.map(seller => (
+                                    <label key={seller.id} className="flex items-center gap-2 text-sm text-stone-600 cursor-pointer">
                                         <input
                                             type="checkbox"
-                                            checked={selectedDesigners.includes(designer)}
-                                            onChange={() => toggleDesigner(designer)}
+                                            checked={selectedDesigners.includes(seller.id)}
+                                            onChange={() => toggleDesigner(seller.id)}
                                             className="accent-rose-500"
                                         />
-                                        {designer}
+                                        {seller.brandName}
                                     </label>
                                 ))}
                             </div>
@@ -701,8 +735,21 @@ function ProductGrid() {
             )}
 
             {/* Grid */}
-            {filtered.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {loading && filtered.length === 0 && !noResultsForTag ? (
+                <div className="flex justify-center py-20">
+                    <ClipLoader size={28} color="#f43f5e" />
+                </div>
+            ) : error && filtered.length === 0 ? (
+                <div className="text-center py-20 text-stone-400">
+                    <p className="text-lg font-semibold mb-1">Couldn't load products</p>
+                    <p className="text-sm">Check your connection and try again.</p>
+                </div>
+            ) : filtered.length > 0 ? (
+                <div
+                    className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 transition-opacity ${
+                        loading ? 'opacity-50' : ''
+                    }`}
+                >
                     {filtered.map(p => <ProductCard key={p.id} product={p} />)}
                 </div>
             ) : (

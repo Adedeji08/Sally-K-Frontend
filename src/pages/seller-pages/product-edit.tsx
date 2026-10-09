@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { ClipLoader } from "react-spinners";
 import { useSellerProducts } from "../../context/seller-product-context";
+import useProduct from "../../hooks/use-product";
 import { useToast } from "../../context/toast-context";
 import ProductForm from "../../components/seller/product-form";
 import type { SellerProductInput } from "../../context/seller-product-context";
@@ -11,12 +12,14 @@ export default function ProductEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
-  const { getProduct, updateProduct, loading, loaded } = useSellerProducts();
+  const { getProduct, updateProduct } = useSellerProducts();
   const [submitting, setSubmitting] = useState(false);
 
-  const product = id ? getProduct(id) : undefined;
+  // GET /products/mine/:id — works for inactive listings too. The cached row
+  // from the products list (if any) renders first while it loads.
+  const { product, loading } = useProduct(id, "mine", id ? getProduct(id) : undefined);
 
-  if (!product && (loading || !loaded)) {
+  if (!product && loading) {
     return (
       <div className="max-w-xl mx-auto flex justify-center py-20">
         <ClipLoader size={28} color="#ED1280" />
@@ -65,6 +68,8 @@ export default function ProductEdit() {
 
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <ProductForm
+          // Form defaults are read once; remount if the fetch brings newer data.
+          key={`${product.id}-${product.updatedAt}`}
           initialValues={product}
           onSubmit={handleSubmit}
           submitLabel="Save Changes"

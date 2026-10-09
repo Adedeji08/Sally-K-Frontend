@@ -17,6 +17,9 @@ export interface ApiProduct {
   price: number;
   images: string[];
   sizes: string[];
+  // Free-form colour names the seller typed ("red", "navy"). May be missing on
+  // products created before colours existed.
+  colors?: string[];
   stock: number;
   isActive: boolean;
   createdAt: string;
@@ -34,6 +37,7 @@ export interface ProductInput {
   price: number;
   images: string[];
   sizes: string[];
+  colors: string[];
   stock: number;
 }
 

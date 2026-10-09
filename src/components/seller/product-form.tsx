@@ -1,8 +1,10 @@
-import { Controller, useForm } from "react-hook-form";
+import { useEffect, useRef } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import Input from "../reusables/input";
 import Textarea from "../reusables/textarea";
 import Select from "../reusables/select";
 import MultiSelect from "../reusables/multi-select";
+import TagInput from "../reusables/tag-input";
 import Button from "../reusables/button";
 import ProductImageInput from "./product-image-input";
 import useApi from "../../hooks/form-req";
@@ -24,6 +26,7 @@ interface ProductFormValues {
   price: string;
   stock: string;
   sizes: string[];
+  colors: string[];
   image1: string;
   image2: string;
   image3: string;
@@ -35,14 +38,26 @@ const CATEGORY_OPTIONS = ["Dresses", "Tops", "Men", "Shoes", "Bags", "Accessorie
   (label) => ({ value: toApiCategory(label), label })
 );
 
-const SIZE_OPTIONS = [
-  { value: "XS", label: "XS" },
-  { value: "S", label: "S" },
-  { value: "M", label: "M" },
-  { value: "L", label: "L" },
-  { value: "XL", label: "XL" },
-  { value: "One Size", label: "One Size" },
-];
+const toOptions = (sizes: string[]) => sizes.map((size) => ({ value: size, label: size }));
+
+const CLOTHING_SIZES = toOptions(["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"]);
+const SHOE_SIZES = toOptions(Array.from({ length: 50 }, (_, i) => String(i + 1)));
+const BAG_SIZES = toOptions(["Mini", "Small", "Medium", "Large", "Extra Large"]);
+const ACCESSORY_SIZES = toOptions(["One Size", "Small", "Medium", "Large"]);
+
+// Keyed by the API category value ("dresses"), same as CATEGORY_OPTIONS.
+const SIZE_OPTIONS_BY_CATEGORY: Record<string, { value: string; label: string }[]> = {
+  dresses: CLOTHING_SIZES,
+  tops: CLOTHING_SIZES,
+  men: CLOTHING_SIZES,
+  shoes: SHOE_SIZES,
+  bags: BAG_SIZES,
+  accessories: ACCESSORY_SIZES,
+};
+
+const NO_SIZES: { value: string; label: string }[] = [];
+
+const COLOR_SUGGESTIONS = ["black", "white", "red", "navy", "beige", "pink"];
 
 const IMAGE_FIELDS = ["image1", "image2", "image3", "image4"] as const;
 
@@ -75,7 +90,7 @@ export default function ProductForm({
     return json.data.url as string;
   };
 
-  const { control, handleSubmit } = useForm<ProductFormValues>({
+  const { control, handleSubmit, getValues, setValue } = useForm<ProductFormValues>({
     defaultValues: {
       name: initialValues?.name ?? "",
       description: initialValues?.description ?? "",
@@ -84,12 +99,27 @@ export default function ProductForm({
       price: initialValues?.price !== undefined ? String(initialValues.price) : "",
       stock: initialValues?.stock !== undefined ? String(initialValues.stock) : "",
       sizes: initialValues?.sizes ?? [],
+      colors: initialValues?.colors ?? [],
       image1: initialValues?.images?.[0] ?? "",
       image2: initialValues?.images?.[1] ?? "",
       image3: initialValues?.images?.[2] ?? "",
       image4: initialValues?.images?.[3] ?? "",
     },
   });
+
+  const category = useWatch({ control, name: "category" });
+  const sizeOptions = SIZE_OPTIONS_BY_CATEGORY[category] ?? NO_SIZES;
+
+  // Switching category (e.g. Dresses -> Shoes) drops sizes that don't exist in
+  // the new list. Skipped on first render so an edited product keeps its sizes.
+  const previousCategory = useRef(category);
+  useEffect(() => {
+    if (previousCategory.current === category) return;
+    previousCategory.current = category;
+    const allowed = new Set(sizeOptions.map((o) => o.value));
+    const kept = getValues("sizes").filter((size) => allowed.has(size));
+    setValue("sizes", kept, { shouldValidate: kept.length > 0 });
+  }, [category, sizeOptions, getValues, setValue]);
 
   const submit = (values: ProductFormValues) => {
     const images = [values.image1, values.image2, values.image3, values.image4].filter(
@@ -103,6 +133,7 @@ export default function ProductForm({
       price: Number(values.price) || 0,
       stock: Number(values.stock) || 0,
       sizes: values.sizes,
+      colors: values.colors,
       images,
     });
   };
@@ -203,11 +234,28 @@ export default function ProductForm({
         render={({ field, fieldState }) => (
           <MultiSelect
             label="Available sizes"
-            placeholder="Select sizes"
-            options={SIZE_OPTIONS}
+            placeholder={category ? "Select sizes" : "Select a category first"}
+            options={sizeOptions}
             value={field.value ?? []}
             onChange={field.onChange}
             error={fieldState.error?.message}
+          />
+        )}
+      />
+
+      <Controller
+        name="colors"
+        control={control}
+        rules={{ validate: (value) => (value && value.length > 0) || "Add at least one color" }}
+        render={({ field, fieldState }) => (
+          <TagInput
+            label="Available colors"
+            placeholder="Type a color and press Enter, e.g. red"
+            value={field.value ?? []}
+            onChange={field.onChange}
+            error={fieldState.error?.message}
+            suggestions={COLOR_SUGGESTIONS}
+            showSwatch
           />
         )}
       />

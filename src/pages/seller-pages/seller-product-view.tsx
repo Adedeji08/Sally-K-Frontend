@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import { ClipLoader } from "react-spinners";
 import { useSellerProducts } from "../../context/seller-product-context";
+import useProduct from "../../hooks/use-product";
 import { useToast } from "../../context/toast-context";
 import { categoryLabel } from "../../types/product";
 
@@ -10,14 +11,16 @@ export default function SellerProductView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
-  const { getProduct, deleteProduct, loading, loaded } = useSellerProducts();
+  const { getProduct, deleteProduct } = useSellerProducts();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
 
-  const product = id ? getProduct(id) : undefined;
+  // GET /products/mine/:id — works for inactive listings too. The cached row
+  // from the products list (if any) renders first while it loads.
+  const { product, loading } = useProduct(id, "mine", id ? getProduct(id) : undefined);
 
-  if (!product && (loading || !loaded)) {
+  if (!product && loading) {
     return (
       <div className="max-w-3xl mx-auto flex justify-center py-20">
         <ClipLoader size={28} color="#ED1280" />
@@ -117,6 +120,28 @@ export default function SellerProductView() {
                 {product.sizes.join(", ") || "—"}
               </p>
             </div>
+          </div>
+
+          <div className="mb-5">
+            <p className="text-[12px] text-[#65799A] mb-1.5">Colors</p>
+            {product.colors?.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {product.colors.map((color) => (
+                  <span
+                    key={color}
+                    className="inline-flex items-center gap-1.5 bg-[#F7F2F4] rounded-full px-2.5 py-1 text-[12px] font-medium text-[#333333] capitalize"
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full border border-[#12121220]"
+                      style={{ backgroundColor: CSS.supports("color", color) ? color : "#E5E7EB" }}
+                    />
+                    {color}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm font-semibold text-[#121212]">—</p>
+            )}
           </div>
 
           <div className="mb-6">
