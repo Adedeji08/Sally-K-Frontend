@@ -109,6 +109,14 @@ export default function SellerProductView() {
           <p className="text-sm text-[#65799A] mb-3">{categoryLabel(product.category)}</p>
           <p className="text-2xl font-bold text-[#121212] mb-4">₦{product.price.toFixed(2)}</p>
 
+          <p className="text-sm text-[#65799A] -mt-2 mb-4">
+            {product.rating?.count
+              ? `★ ${product.rating.average.toFixed(1)} · ${product.rating.count} review${
+                  product.rating.count === 1 ? "" : "s"
+                }`
+              : "No reviews yet"}
+          </p>
+
           <div className="grid grid-cols-2 gap-4 mb-5">
             <div>
               <p className="text-[12px] text-[#65799A] mb-1">Stock</p>

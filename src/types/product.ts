@@ -27,6 +27,9 @@ export interface ApiProduct {
   // Present on the shopper catalogue (GET /products) so the storefront can show
   // which brand a listing belongs to.
   seller?: ApiProductSeller;
+  // Live review summary — only on the single-product endpoints
+  // (GET /products/:id and /products/mine/:id).
+  rating?: { average: number; count: number };
 }
 
 // Exactly what POST /products and PATCH /products/:id accept.

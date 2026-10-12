@@ -9,11 +9,12 @@ import { useWishlist } from "../../context/wishlist-context";
 import { useShopProducts } from "../../context/shop-product-context";
 import useProduct from "../../hooks/use-product";
 import { categoryLabel } from "../../types/product";
-import type { ProductReview } from "../../utils/product-reviews";
-import { readReviews, writeReviews } from "../../utils/product-reviews";
+import { useCurrentUser } from "../../context/current-user-context";
+import { useToast } from "../../context/toast-context";
+import useProductReviews from "../../hooks/use-product-reviews";
 
-function formatTimeAgo(timestamp: number): string {
-  const days = Math.floor((Date.now() - timestamp) / 86400000);
+function formatTimeAgo(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
   if (days <= 0) return "Today";
   if (days === 1) return "1 day ago";
   if (days < 30) return `${days} days ago`;
@@ -36,8 +37,10 @@ export default function ProductDetail() {
 
 function ProductDetailView({ id }: { id: string | undefined }) {
   const navigate = useNavigate();
-  const { isAuthenticated, user, openLoginModal } = useAuth();
+  const { isAuthenticated, openLoginModal } = useAuth();
+  const { currentUser } = useCurrentUser();
   const { addItem } = useCart();
+  const toast = useToast();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const { products: catalogue } = useShopProducts();
 
@@ -54,8 +57,12 @@ function ProductDetailView({ id }: { id: string | undefined }) {
   const [selectedColor, setSelectedColor] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
+  const [adding, setAdding] = useState(false);
 
-  const [reviews, setReviews] = useState<ProductReview[]>(() => (id ? readReviews(id) : []));
+  const { reviews, summary, createReview, updateReview, deleteReview } = useProductReviews(id);
+  // The review being edited, or null when the form is for a new review.
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+  const [savingReview, setSavingReview] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
@@ -94,33 +101,48 @@ function ProductDetailView({ id }: { id: string | undefined }) {
   const activeSize = selectedSize || product.sizes[0];
   const activeColor = selectedColor || colors[0];
   const outOfStock = product.stock <= 0;
-  const reviewCount = reviews.length;
-  const rating = reviewCount
-    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
-    : 0;
+  const reviewCount = summary.count;
+  const rating = summary.average;
+  // One review per shopper per product (the API 409s a second one), so if they
+  // already have one the form becomes "edit".
+  const myReview = currentUser ? reviews.find((r) => r.userId === currentUser.id) : undefined;
+  const showReviewForm = !myReview || editingReviewId === myReview.id;
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!isAuthenticated) {
       openLoginModal("Sign in to add items to your bag and check out.");
       return;
     }
-    addItem(
-      {
-        productId: product.id,
-        name: product.name,
-        designer,
-        price: product.price,
-        image: product.images[0] ?? "",
-        size: activeSize,
-        color: activeColor,
-      },
+    setAdding(true);
+    const result = await addItem(
+      { productId: product.id, size: activeSize, color: activeColor },
       quantity
     );
+    setAdding(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
     setAdded(true);
     setTimeout(() => setAdded(false), 1800);
   };
 
-  const handleSubmitReview = () => {
+  const resetReviewForm = () => {
+    setEditingReviewId(null);
+    setReviewRating(0);
+    setReviewComment("");
+    setReviewError("");
+  };
+
+  const startEditingReview = () => {
+    if (!myReview) return;
+    setEditingReviewId(myReview.id);
+    setReviewRating(myReview.rating);
+    setReviewComment(myReview.comment);
+    setReviewError("");
+  };
+
+  const handleSubmitReview = async () => {
     if (!isAuthenticated) {
       openLoginModal("Sign in to share your thoughts about this product.");
       return;
@@ -129,26 +151,36 @@ function ProductDetailView({ id }: { id: string | undefined }) {
       setReviewError("Please select a star rating.");
       return;
     }
-    if (!reviewComment.trim()) {
-      setReviewError("Please write a short comment.");
+    const comment = reviewComment.trim();
+    if (comment.length < 5) {
+      setReviewError("Please write at least 5 characters.");
       return;
     }
 
-    const next = [
-      {
-        id: `${Date.now()}`,
-        name: user?.name ?? "Shopper",
-        rating: reviewRating,
-        comment: reviewComment.trim(),
-        createdAt: Date.now(),
-      },
-      ...reviews,
-    ];
-    setReviews(next);
-    writeReviews(product.id, next);
-    setReviewRating(0);
-    setReviewComment("");
-    setReviewError("");
+    setSavingReview(true);
+    const input = { rating: reviewRating, comment };
+    const result = editingReviewId
+      ? await updateReview(editingReviewId, input)
+      : await createReview(input);
+    setSavingReview(false);
+
+    if (!result.ok) {
+      setReviewError(result.message);
+      return;
+    }
+    toast.success(editingReviewId ? "Review updated." : "Thanks for your review!");
+    resetReviewForm();
+  };
+
+  const handleDeleteReview = async () => {
+    if (!myReview) return;
+    const result = await deleteReview(myReview.id);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    toast.success("Review deleted.");
+    resetReviewForm();
   };
 
   return (
@@ -317,11 +349,17 @@ function ProductDetailView({ id }: { id: string | undefined }) {
 
             <button
               onClick={handleAddToCart}
-              disabled={outOfStock}
+              disabled={outOfStock || adding}
               className="w-full py-3.5 rounded-full text-sm font-semibold flex items-center justify-center gap-2 transition-colors bg-rose-500 hover:bg-rose-600 text-white disabled:bg-stone-300 disabled:cursor-not-allowed"
             >
               <ShoppingBag className="w-4 h-4" strokeWidth={2} />
-              {outOfStock ? "Out of stock" : added ? "Added to bag!" : "Add to Cart"}
+              {outOfStock
+                ? "Out of stock"
+                : adding
+                  ? "Adding..."
+                  : added
+                    ? "Added to bag!"
+                    : "Add to Cart"}
             </button>
 
             {added && (
@@ -350,9 +388,31 @@ function ProductDetailView({ id }: { id: string | undefined }) {
 
           {/* Write a review */}
           <div className="bg-white rounded-2xl shadow-sm p-5 mb-8">
-            {isAuthenticated ? (
+            {isAuthenticated && !showReviewForm && myReview ? (
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-sm text-stone-500">You've reviewed this product.</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={startEditingReview}
+                    className="border border-stone-200 text-stone-700 font-semibold px-5 py-2 rounded-full text-sm hover:bg-stone-50 transition-colors"
+                  >
+                    Edit review
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteReview}
+                    className="text-sm font-semibold text-stone-400 hover:text-rose-500 px-3 py-2 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ) : isAuthenticated ? (
               <>
-                <p className="text-sm font-semibold text-stone-800 mb-3">Write a review</p>
+                <p className="text-sm font-semibold text-stone-800 mb-3">
+                  {editingReviewId ? "Edit your review" : "Write a review"}
+                </p>
                 <div className="flex items-center gap-1 mb-3">
                   {Array.from({ length: 5 }).map((_, i) => {
                     const starValue = i + 1;
@@ -390,13 +450,25 @@ function ProductDetailView({ id }: { id: string | undefined }) {
                   className="w-full rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all mb-2"
                 />
                 {reviewError && <p className="text-xs text-rose-500 mb-2">{reviewError}</p>}
-                <button
-                  type="button"
-                  onClick={handleSubmitReview}
-                  className="bg-rose-500 hover:bg-rose-600 text-white font-semibold px-6 py-2.5 rounded-full text-sm transition-colors"
-                >
-                  Post Review
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSubmitReview}
+                    disabled={savingReview}
+                    className="bg-rose-500 hover:bg-rose-600 text-white font-semibold px-6 py-2.5 rounded-full text-sm transition-colors disabled:opacity-60"
+                  >
+                    {savingReview ? "Saving..." : editingReviewId ? "Save Changes" : "Post Review"}
+                  </button>
+                  {editingReviewId && (
+                    <button
+                      type="button"
+                      onClick={resetReviewForm}
+                      className="text-sm font-semibold text-stone-500 hover:text-stone-700 px-4 py-2.5 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
               </>
             ) : (
               <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -423,7 +495,14 @@ function ProductDetailView({ id }: { id: string | undefined }) {
               {reviews.map((review) => (
                 <div key={review.id} className="py-5">
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-semibold text-stone-800">{review.name}</p>
+                    <p className="text-sm font-semibold text-stone-800">
+                      {review.user.fullName}
+                      {review.userId === currentUser?.id && (
+                        <span className="ml-2 text-[11px] font-medium text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">
+                          You
+                        </span>
+                      )}
+                    </p>
                     <span className="text-xs text-stone-400">
                       {formatTimeAgo(review.createdAt)}
                     </span>

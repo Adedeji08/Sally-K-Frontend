@@ -63,7 +63,7 @@ function CopyableRow({ label, value }: { label: string; value: string }) {
 export default function Payment() {
   const navigate = useNavigate();
   const { isAuthenticated, openLoginModal } = useAuth();
-  const { items, subtotal, clearCart } = useCart();
+  const { items, subtotal, clearCart, loaded: cartLoaded } = useCart();
   const { shipping, clearShipping } = useCheckout();
   const { addOrder } = useOrders();
   const [method, setMethod] = useState<PaymentMethod>("card");
@@ -79,10 +79,10 @@ export default function Payment() {
   }, [isAuthenticated, navigate, openLoginModal]);
 
   useEffect(() => {
-    if (!orderPlaced && items.length === 0) {
+    if (cartLoaded && !orderPlaced && items.length === 0) {
       navigate("/cart", { replace: true });
     }
-  }, [items.length, orderPlaced, navigate]);
+  }, [cartLoaded, items.length, orderPlaced, navigate]);
 
   useEffect(() => {
     if (!orderPlaced && items.length > 0 && !shipping) {

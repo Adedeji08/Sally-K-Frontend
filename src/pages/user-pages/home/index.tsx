@@ -5,6 +5,7 @@ import { ClipLoader } from "react-spinners";
 import Navbar from "../../../layouts/navbar";
 import { useAuth } from "../../../context/auth-context";
 import { useCart } from "../../../context/cart-context";
+import { useToast } from "../../../context/toast-context";
 import { useWishlist } from "../../../context/wishlist-context";
 import { useShopProducts } from "../../../context/shop-product-context";
 import useRequest from "../../../hooks/use-req";
@@ -21,6 +22,10 @@ interface Product {
     price: number;
     category: string;
     image: string;
+    // Has sizes or colours to pick — the cart API needs them, so the card
+    // sends shoppers to the product page instead of adding directly.
+    needsOptions: boolean;
+    stock: number;
     tag?: 'New' | 'Trending' | 'Sale';
     sponsored?: boolean;
 }
@@ -48,6 +53,8 @@ function toCardProduct(p: ApiProduct): Product {
         price: p.price,
         category: categoryLabel(p.category),
         image: p.images[0] ?? '',
+        needsOptions: p.sizes.length > 0 || (p.colors?.length ?? 0) > 0,
+        stock: p.stock,
     };
 }
 
@@ -339,24 +346,31 @@ interface ProductCardProps {
 function ProductCard({ product }: ProductCardProps) {
     const [added, setAdded] = useState(false);
     const { isAuthenticated, openLoginModal } = useAuth();
+    const [adding, setAdding] = useState(false);
     const { addItem } = useCart();
+    const toast = useToast();
     const { isWishlisted, toggleWishlist } = useWishlist();
     const navigate = useNavigate();
     const liked = isWishlisted(product.id);
+    const outOfStock = product.stock <= 0;
 
-    const handleAdd = (e: React.MouseEvent) => {
+    const handleAdd = async (e: React.MouseEvent) => {
         e.stopPropagation();
+        if (product.needsOptions) {
+            navigate(`/product/${product.id}`);
+            return;
+        }
         if (!isAuthenticated) {
             openLoginModal("Sign in to add items to your bag and check out.");
             return;
         }
-        addItem({
-            productId: product.id,
-            name: product.name,
-            designer: product.designer,
-            price: product.price,
-            image: product.image,
-        });
+        setAdding(true);
+        const result = await addItem({ productId: product.id });
+        setAdding(false);
+        if (!result.ok) {
+            toast.error(result.message);
+            return;
+        }
         setAdded(true);
         setTimeout(() => setAdded(false), 1500);
     };
@@ -410,7 +424,8 @@ function ProductCard({ product }: ProductCardProps) {
                 <div className="absolute bottom-0 left-0 right-0">
                     <button
                         onClick={handleAdd}
-                        className={`w-full py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${added ? 'bg-rose-600 text-white' : 'bg-stone-900 text-white hover:bg-stone-800'
+                        disabled={adding || outOfStock}
+                        className={`w-full disabled:opacity-70 disabled:cursor-not-allowed py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${added ? 'bg-rose-600 text-white' : 'bg-stone-900 text-white hover:bg-stone-800'
                             }`}
                     >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -418,7 +433,15 @@ function ProductCard({ product }: ProductCardProps) {
                             <line x1="3" y1="6" x2="21" y2="6" />
                             <path d="M16 10a4 4 0 0 1-8 0" />
                         </svg>
-                        {added ? 'Added!' : 'Add to Bag'}
+                        {outOfStock
+                            ? 'Out of stock'
+                            : product.needsOptions
+                                ? 'Choose options'
+                                : adding
+                                    ? 'Adding...'
+                                    : added
+                                        ? 'Added!'
+                                        : 'Add to Bag'}
                     </button>
                 </div>
             </div>

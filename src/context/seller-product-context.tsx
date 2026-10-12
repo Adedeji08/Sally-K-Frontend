@@ -25,7 +25,7 @@ interface SellerProductContextValue {
 }
 
 const SellerProductContext = createContext<SellerProductContextValue | null>(null);
-
+  const token = localStorage.getItem("authToken");
 const ok = (status: number) => status >= 200 && status < 300;
 
 export function SellerProductProvider({ children }: { children: ReactNode }) {
@@ -33,7 +33,10 @@ export function SellerProductProvider({ children }: { children: ReactNode }) {
   const isSeller = user?.role === "seller";
 
   const { makeRequest: fetchMine } = useRequest("/products/mine", "GET");
-  const { makeRequest: createReq } = useRequest("/products", "POST");
+  const { makeRequest: createReq } = useRequest("/products", "POST", {
+     Authorization: `Bearer ${token}`,
+  });
+
   const { makeRequest: updateReq } = useRequest("/products", "PATCH");
   const { makeRequest: deleteReq } = useRequest("/products", "DELETE");
 

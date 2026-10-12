@@ -13,7 +13,7 @@ const fieldClass =
 export default function Shipping() {
   const navigate = useNavigate();
   const { isAuthenticated, user, openLoginModal } = useAuth();
-  const { items, subtotal } = useCart();
+  const { items, subtotal, loaded: cartLoaded } = useCart();
   const { shipping, setShipping } = useCheckout();
 
   const [address, setAddress] = useState(shipping?.address ?? user?.address ?? "");
@@ -30,10 +30,10 @@ export default function Shipping() {
   }, [isAuthenticated, navigate, openLoginModal]);
 
   useEffect(() => {
-    if (items.length === 0) {
+    if (cartLoaded && items.length === 0) {
       navigate("/cart", { replace: true });
     }
-  }, [items.length, navigate]);
+  }, [cartLoaded, items.length, navigate]);
 
   if (!isAuthenticated || items.length === 0) return null;
 
