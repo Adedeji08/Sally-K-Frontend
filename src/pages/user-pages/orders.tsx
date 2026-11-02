@@ -4,14 +4,6 @@ import { Package } from "lucide-react";
 import Navbar from "../../layouts/navbar";
 import { useAuth } from "../../context/auth-context";
 import { useOrders } from "../../context/order-context";
-import { DELIVERY_STAGE_META, getDeliveryStage } from "../../utils/delivery-status";
-
-const STAGE_STYLES: Record<string, string> = {
-  processing: "bg-amber-50 text-amber-600",
-  shipped: "bg-blue-50 text-blue-600",
-  out_for_delivery: "bg-violet-50 text-violet-600",
-  delivered: "bg-emerald-50 text-emerald-600",
-};
 
 export default function Orders() {
   const navigate = useNavigate();
@@ -58,7 +50,6 @@ export default function Orders() {
         ) : (
           <div className="flex flex-col gap-4">
             {orders.map((order) => {
-              const stage = getDeliveryStage(order.createdAt, order.deliveryMethod);
               return (
               <Link
                 key={order.id}
@@ -83,9 +74,13 @@ export default function Orders() {
                       </span>
                     )}
                     <span
-                      className={`text-xs font-semibold px-3 py-1 rounded-full ${STAGE_STYLES[stage]}`}
+                      className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                        order.fulfilled
+                          ? "bg-emerald-50 text-emerald-600"
+                          : "bg-amber-50 text-amber-600"
+                      }`}
                     >
-                      {DELIVERY_STAGE_META[stage].label}
+                      {order.fulfilled ? "Fulfilled" : "Awaiting supplier"}
                     </span>
                   </div>
                 </div>

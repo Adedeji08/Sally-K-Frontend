@@ -1,16 +1,14 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { CartItem } from "./cart-context";
-import type { DeliveryMethod } from "./checkout-context";
 
 export interface Order {
   id: string;
   items: CartItem[];
   subtotal: number;
-  shippingFee: number;
   total: number;
+  // Buyer's address; delivery is arranged with each item's supplier.
   address: string;
-  deliveryMethod: DeliveryMethod;
   paymentMethod: "card" | "transfer";
   paymentStatus: "pending" | "paid";
   fulfilled: boolean;

@@ -23,6 +23,8 @@ export interface SellerProfileData {
   logoUrl: string | null;
   instagramUrl: string | null;
   facebookUrl: string | null;
+  // Shown to buyers at checkout so they know where their order ships from.
+  address: string | null;
   verificationStatus: string;
   idType: string | null;
   idNumber: string | null;

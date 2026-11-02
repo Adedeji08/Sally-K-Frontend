@@ -1,11 +1,39 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, MessageSquare, Pencil, Star, Trash2 } from "lucide-react";
 import { ClipLoader } from "react-spinners";
 import { useSellerProducts } from "../../context/seller-product-context";
 import useProduct from "../../hooks/use-product";
+import useProductReviews from "../../hooks/use-product-reviews";
 import { useToast } from "../../context/toast-context";
 import { categoryLabel } from "../../types/product";
+
+function formatReviewDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function Stars({ value, size = "w-3.5 h-3.5" }: { value: number; size?: string }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => {
+        const filled = i < Math.round(value);
+        return (
+          <Star
+            key={i}
+            className={size}
+            fill={filled ? "#ED1280" : "none"}
+            stroke={filled ? "#ED1280" : "#D1D5DB"}
+            strokeWidth={2}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
 export default function SellerProductView() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +47,8 @@ export default function SellerProductView() {
   // GET /products/mine/:id — works for inactive listings too. The cached row
   // from the products list (if any) renders first while it loads.
   const { product, loading } = useProduct(id, "mine", id ? getProduct(id) : undefined);
+  // GET /reviews?productId= — what buyers have said about this listing.
+  const { reviews, summary, loading: reviewsLoading } = useProductReviews(id);
 
   if (!product && loading) {
     return (
@@ -109,13 +139,15 @@ export default function SellerProductView() {
           <p className="text-sm text-[#65799A] mb-3">{categoryLabel(product.category)}</p>
           <p className="text-2xl font-bold text-[#121212] mb-4">₦{product.price.toFixed(2)}</p>
 
-          <p className="text-sm text-[#65799A] -mt-2 mb-4">
-            {product.rating?.count
-              ? `★ ${product.rating.average.toFixed(1)} · ${product.rating.count} review${
-                  product.rating.count === 1 ? "" : "s"
-                }`
+          <a
+            href="#reviews"
+            className="inline-flex items-center gap-1.5 text-sm text-[#65799A] hover:text-[#ED1280] -mt-2 mb-4 transition-colors"
+          >
+            <Stars value={summary.average} />
+            {summary.count
+              ? `${summary.average.toFixed(1)} · ${summary.count} review${summary.count === 1 ? "" : "s"}`
               : "No reviews yet"}
-          </p>
+          </a>
 
           <div className="grid grid-cols-2 gap-4 mb-5">
             <div>
@@ -175,6 +207,84 @@ export default function SellerProductView() {
           </div>
         </div>
       </div>
+
+      {/* Reviews */}
+      <section id="reviews" className="mt-10 scroll-mt-6">
+        <h2 className="text-lg font-semibold text-[#121212] mb-4">Customer Reviews</h2>
+
+        {reviewsLoading ? (
+          <div className="flex justify-center py-10">
+            <ClipLoader size={24} color="#ED1280" />
+          </div>
+        ) : reviews.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
+            <span className="w-12 h-12 rounded-full bg-[#F2E8ED] flex items-center justify-center mx-auto mb-3">
+              <MessageSquare className="w-5 h-5 text-[#ED1280]" strokeWidth={2} />
+            </span>
+            <p className="text-sm font-semibold text-[#121212] mb-1">No reviews yet</p>
+            <p className="text-[13px] text-[#65799A]">
+              When buyers review this product, you'll see what they said here.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6 items-start">
+            {/* Summary */}
+            <div className="bg-white rounded-2xl shadow-sm p-5">
+              <p className="text-4xl font-bold text-[#121212] leading-none mb-2">
+                {summary.average.toFixed(1)}
+              </p>
+              <Stars value={summary.average} size="w-4 h-4" />
+              <p className="text-[12px] text-[#65799A] mt-1.5 mb-4">
+                Based on {summary.count} review{summary.count === 1 ? "" : "s"}
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {[5, 4, 3, 2, 1].map((stars) => {
+                  const count = reviews.filter((r) => r.rating === stars).length;
+                  const pct = reviews.length ? (count / reviews.length) * 100 : 0;
+                  return (
+                    <div key={stars} className="flex items-center gap-2 text-[12px] text-[#65799A]">
+                      <span className="w-3 text-right">{stars}</span>
+                      <Star className="w-3 h-3" fill="#ED1280" stroke="#ED1280" strokeWidth={2} />
+                      <div className="flex-1 h-1.5 rounded-full bg-[#F2E8ED] overflow-hidden">
+                        <div className="h-full rounded-full bg-[#ED1280]" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="w-5 text-right">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* List */}
+            <div className="bg-white rounded-2xl shadow-sm divide-y divide-[#F2E8ED]">
+              {reviews.map((review) => (
+                <div key={review.id} className="p-5">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-9 h-9 rounded-full bg-[#F2E8ED] text-[#ED1280] text-sm font-semibold flex items-center justify-center shrink-0">
+                        {review.user.fullName.trim().charAt(0).toUpperCase() || "?"}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-[#121212] truncate">
+                          {review.user.fullName}
+                        </p>
+                        <Stars value={review.rating} />
+                      </div>
+                    </div>
+                    <span className="text-[12px] text-[#65799A] shrink-0">
+                      {formatReviewDate(review.createdAt)}
+                      {review.updatedAt !== review.createdAt && " · edited"}
+                    </span>
+                  </div>
+                  <p className="text-sm text-[#333333] leading-relaxed whitespace-pre-line">
+                    {review.comment}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
 
       {confirmDelete && (
         <div

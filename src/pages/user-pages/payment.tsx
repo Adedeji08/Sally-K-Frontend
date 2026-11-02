@@ -12,7 +12,7 @@ import {
 import Navbar from "../../layouts/navbar";
 import { useAuth } from "../../context/auth-context";
 import { useCart } from "../../context/cart-context";
-import { DELIVERY_OPTIONS, useCheckout } from "../../context/checkout-context";
+import { useCheckout } from "../../context/checkout-context";
 import { useOrders } from "../../context/order-context";
 
 type PaymentMethod = "card" | "transfer";
@@ -90,18 +90,16 @@ export default function Payment() {
     }
   }, [shipping, items.length, orderPlaced, navigate]);
 
-  const shippingFee = shipping ? DELIVERY_OPTIONS[shipping.deliveryMethod].fee : 0;
-  const total = subtotal + shippingFee;
+  // Delivery is arranged (and paid for) directly with each supplier.
+  const total = subtotal;
 
   const handlePaySuccess = () => {
     if (!shipping) return;
     const order = addOrder({
       items,
       subtotal,
-      shippingFee,
       total,
       address: shipping.address,
-      deliveryMethod: shipping.deliveryMethod,
       paymentMethod: method,
       paymentStatus: method === "transfer" ? "pending" : "paid",
     });
@@ -324,9 +322,7 @@ export default function Payment() {
             {shipping && (
               <div className="flex items-start justify-between gap-3 bg-stone-50 rounded-xl p-3 mb-4">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-stone-700">
-                    {DELIVERY_OPTIONS[shipping.deliveryMethod].label}
-                  </p>
+                  <p className="text-xs font-semibold text-stone-700">Your address</p>
                   <p className="text-xs text-stone-400 truncate">{shipping.address}</p>
                 </div>
                 <Link
@@ -361,8 +357,8 @@ export default function Payment() {
                 <span className="text-stone-800 font-medium">₦{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Shipping</span>
-                <span className="text-stone-800 font-medium">₦{shippingFee.toFixed(2)}</span>
+                <span>Delivery</span>
+                <span>Arranged with supplier</span>
               </div>
             </div>
 

@@ -17,6 +17,7 @@ interface StoreFormValues {
   bio: string;
   instagram: string;
   facebook: string;
+  address: string;
 }
 
 const CATEGORY_OPTIONS = [
@@ -70,7 +71,14 @@ export default function SellerStoreProfile() {
   );
 
   const { control, handleSubmit, reset } = useForm<StoreFormValues>({
-    defaultValues: { brandName: "", categories: [], bio: "", instagram: "", facebook: "" },
+    defaultValues: {
+      brandName: "",
+      categories: [],
+      bio: "",
+      instagram: "",
+      facebook: "",
+      address: "",
+    },
   });
 
   // Hydrate the form from /auth/me once it lands (and again after a save-refetch).
@@ -82,6 +90,7 @@ export default function SellerStoreProfile() {
       bio: sellerProfile.bio ?? "",
       instagram: toHandle(sellerProfile.instagramUrl),
       facebook: toHandle(sellerProfile.facebookUrl),
+      address: sellerProfile.address ?? "",
     });
     setLogoUrl(sellerProfile.logoUrl ?? null);
   }, [sellerProfile, reset]);
@@ -113,6 +122,7 @@ export default function SellerStoreProfile() {
       logoUrl: logoUrl ?? undefined,
       instagramUrl: values.instagram ? `https://instagram.com/${toHandle(values.instagram)}` : "",
       facebookUrl: values.facebook ? `https://facebook.com/${toHandle(values.facebook)}` : "",
+      address: values.address.trim(),
     });
 
     if (status < 200 || status >= 300) {
@@ -212,6 +222,30 @@ export default function SellerStoreProfile() {
             />
           )}
         />
+
+        <Controller
+          name="address"
+          control={control}
+          rules={{
+            required: "Business address is required",
+            validate: (value) =>
+              value.trim().length >= 5 || "Address must be at least 5 characters",
+          }}
+          render={({ field, fieldState }) => (
+            <Textarea
+              label="Business address"
+              placeholder="Street address, city, state"
+              value={field.value}
+              onChange={field.onChange}
+              error={fieldState.error?.message}
+              required
+            />
+          )}
+        />
+        <p className="text-[12px] text-[#65799A] -mt-2">
+          Buyers see this at checkout, along with your phone number and email, so they can
+          arrange delivery with you.
+        </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Controller

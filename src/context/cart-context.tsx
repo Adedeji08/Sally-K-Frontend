@@ -3,6 +3,17 @@ import type { ReactNode } from "react";
 import { useAuth } from "./auth-context";
 import useRequest from "../hooks/use-req";
 
+// Who sells a cart line. Buyers arrange delivery directly with the supplier,
+// so checkout shows these contact details.
+export interface CartSupplier {
+  id: string;
+  brandName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  address: string | null;
+}
+
 // One line of GET /cart, flattened for the bag/checkout screens. `lineId` is
 // the server's cart item id (used for PATCH/DELETE /cart/:id).
 export interface CartItem {
@@ -16,6 +27,7 @@ export interface CartItem {
   quantity: number;
   stock: number;
   isActive: boolean;
+  supplier: CartSupplier | null;
 }
 
 interface ApiCartItem {
@@ -24,7 +36,19 @@ interface ApiCartItem {
   size: string | null;
   color: string | null;
   quantity: number;
-  product: { name: string; price: number; images: string[]; stock: number; isActive: boolean };
+  product: {
+    name: string;
+    price: number;
+    images: string[];
+    stock: number;
+    isActive: boolean;
+    seller?: {
+      id: string;
+      brandName: string;
+      address: string | null;
+      user: { fullName: string; email: string; phoneNumber: string };
+    };
+  };
 }
 
 export interface AddToCartInput {
@@ -68,6 +92,16 @@ function toCartItem(line: ApiCartItem): CartItem {
     quantity: line.quantity,
     stock: line.product.stock,
     isActive: line.product.isActive,
+    supplier: line.product.seller
+      ? {
+          id: line.product.seller.id,
+          brandName: line.product.seller.brandName,
+          contactName: line.product.seller.user.fullName,
+          email: line.product.seller.user.email,
+          phone: line.product.seller.user.phoneNumber,
+          address: line.product.seller.address,
+        }
+      : null,
   };
 }
 

@@ -1,7 +1,6 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Banknote, CreditCard, MapPin } from "lucide-react";
 import { useOrders } from "../../context/order-context";
-import { DELIVERY_OPTIONS } from "../../context/checkout-context";
 import { getTransactionFee, getNetPayout } from "../../utils/transaction-fee";
 
 export default function SellerOrderDetail() {
@@ -91,12 +90,12 @@ export default function SellerOrderDetail() {
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <div className="flex items-center gap-2 mb-3">
             <MapPin className="w-4 h-4 text-[#ED1280]" strokeWidth={2} />
-            <h2 className="text-sm font-semibold text-[#121212]">Delivery</h2>
+            <h2 className="text-sm font-semibold text-[#121212]">Buyer's address</h2>
           </div>
-          <p className="text-sm text-[#333333] font-medium">
-            {DELIVERY_OPTIONS[order.deliveryMethod].label}
+          <p className="text-sm text-[#333333]">{order.address}</p>
+          <p className="text-xs text-[#65799A] mt-2">
+            Reach out to the buyer to arrange delivery and any delivery cost.
           </p>
-          <p className="text-xs text-[#65799A] mt-1">{order.address}</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-6">
@@ -123,10 +122,6 @@ export default function SellerOrderDetail() {
           <div className="flex justify-between">
             <span>Subtotal</span>
             <span className="text-[#121212] font-medium">₦{order.subtotal.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Shipping (paid to logistics partner)</span>
-            <span className="text-[#121212] font-medium">₦{order.shippingFee.toFixed(2)}</span>
           </div>
           <div className="flex justify-between pt-2 mt-1 border-t border-[#F2E8ED]">
             <span className="text-sm font-semibold text-[#121212]">Buyer paid</span>

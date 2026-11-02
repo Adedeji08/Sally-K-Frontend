@@ -1,14 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { CheckCircle2, Truck } from "lucide-react";
+import { Info, Mail, MapPin, Phone, Store } from "lucide-react";
 import Navbar from "../../layouts/navbar";
 import { useAuth } from "../../context/auth-context";
 import { useCart } from "../../context/cart-context";
-import { DELIVERY_OPTIONS, useCheckout } from "../../context/checkout-context";
-import type { DeliveryMethod } from "../../context/checkout-context";
+import type { CartItem, CartSupplier } from "../../context/cart-context";
+import { useCheckout } from "../../context/checkout-context";
 
 const fieldClass =
   "w-full rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all";
+
+interface SupplierGroup {
+  supplier: CartSupplier;
+  items: CartItem[];
+}
 
 export default function Shipping() {
   const navigate = useNavigate();
@@ -17,9 +22,6 @@ export default function Shipping() {
   const { shipping, setShipping } = useCheckout();
 
   const [address, setAddress] = useState(shipping?.address ?? user?.address ?? "");
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>(
-    shipping?.deliveryMethod ?? "standard"
-  );
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -35,16 +37,26 @@ export default function Shipping() {
     }
   }, [cartLoaded, items.length, navigate]);
 
-  if (!isAuthenticated || items.length === 0) return null;
+  // One card per supplier, listing which of the bag's items they're sending.
+  const suppliers = useMemo(() => {
+    const groups = new Map<string, SupplierGroup>();
+    for (const item of items) {
+      if (!item.supplier) continue;
+      const group = groups.get(item.supplier.id);
+      if (group) group.items.push(item);
+      else groups.set(item.supplier.id, { supplier: item.supplier, items: [item] });
+    }
+    return Array.from(groups.values());
+  }, [items]);
 
-  const shippingFee = DELIVERY_OPTIONS[deliveryMethod].fee;
+  if (!isAuthenticated || items.length === 0) return null;
 
   const handleContinue = () => {
     if (!address.trim()) {
-      setError("Please enter a delivery address.");
+      setError("Please enter your address.");
       return;
     }
-    setShipping({ address: address.trim(), deliveryMethod });
+    setShipping({ address: address.trim() });
     navigate("/payment");
   };
 
@@ -57,19 +69,15 @@ export default function Shipping() {
             Home
           </Link>{" "}
           / <Link to="/cart" className="hover:text-rose-500 transition-colors">Shopping Bag</Link> /{" "}
-          <span className="text-stone-600">Shipping</span>
+          <span className="text-stone-600">Details</span>
         </p>
-        <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 mb-8">
-          Delivery Details
-        </h1>
+        <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 mb-8">Your Details</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Address + delivery method */}
           <div className="lg:col-span-2 flex flex-col gap-6">
+            {/* Address */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
-              <label className="text-sm font-medium text-stone-700 mb-1.5 block">
-                Delivery address
-              </label>
+              <label className="text-sm font-medium text-stone-700 mb-1.5 block">Address</label>
               <textarea
                 value={address}
                 onChange={(e) => {
@@ -90,43 +98,81 @@ export default function Shipping() {
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm p-6">
-              <p className="text-sm font-semibold text-stone-800 mb-3">Delivery method</p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                {(Object.keys(DELIVERY_OPTIONS) as DeliveryMethod[]).map((key) => {
-                  const option = DELIVERY_OPTIONS[key];
-                  const active = deliveryMethod === key;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setDeliveryMethod(key)}
-                      className={`flex-1 flex items-start gap-3 text-left border rounded-xl p-4 transition-colors ${
-                        active
-                          ? "border-rose-500 bg-rose-50"
-                          : "border-stone-200 hover:border-stone-300"
-                      }`}
-                    >
-                      <span className="mt-0.5">
-                        {active ? (
-                          <CheckCircle2 className="w-5 h-5 text-rose-500" strokeWidth={2} />
-                        ) : (
-                          <Truck className="w-5 h-5 text-stone-400" strokeWidth={2} />
-                        )}
-                      </span>
-                      <span>
-                        <span className="block text-sm font-semibold text-stone-800">
-                          {option.label}
-                        </span>
-                        <span className="block text-xs text-stone-400 mt-0.5">{option.eta}</span>
-                        <span className="block text-sm font-semibold text-stone-900 mt-1">
-                          ₦{option.fee.toFixed(2)}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
+            {/* How delivery works */}
+            <div className="flex items-start gap-3 bg-rose-50 border border-rose-100 rounded-2xl p-5">
+              <span className="w-9 h-9 rounded-full bg-white flex items-center justify-center shrink-0">
+                <Info className="w-4 h-4 text-rose-500" strokeWidth={2} />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-stone-800 mb-1">
+                  Delivery is arranged between you and your supplier
+                </p>
+                <p className="text-sm text-stone-600 leading-relaxed">
+                  Once your order is placed, your supplier will reach out to you to agree on
+                  delivery, including timing and any delivery cost. You can also contact them
+                  directly using the details below.
+                </p>
               </div>
+            </div>
+
+            {/* Supplier contact cards */}
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <p className="text-sm font-semibold text-stone-800 mb-4">
+                {suppliers.length === 1 ? "Your supplier" : "Your suppliers"}
+              </p>
+
+              {suppliers.length === 0 ? (
+                <p className="text-sm text-stone-400">Loading supplier details...</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {suppliers.map(({ supplier, items: supplierItems }) => (
+                    <div key={supplier.id} className="border border-stone-200 rounded-xl p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center shrink-0">
+                          <Store className="w-4 h-4 text-rose-500" strokeWidth={2} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-stone-800 truncate">
+                            {supplier.brandName}
+                          </p>
+                          <p className="text-xs text-stone-400 truncate">
+                            For: {supplierItems.map((item) => item.name).join(", ")}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+                        <p className="flex items-center gap-2 text-stone-700 min-w-0">
+                          <span className="text-xs text-stone-400 w-12 shrink-0">Name</span>
+                          <span className="truncate">{supplier.contactName}</span>
+                        </p>
+                        <a
+                          href={`tel:${supplier.phone}`}
+                          className="flex items-center gap-2 text-stone-700 hover:text-rose-500 transition-colors min-w-0"
+                        >
+                          <Phone className="w-3.5 h-3.5 text-stone-400 shrink-0" strokeWidth={2} />
+                          <span className="truncate">{supplier.phone}</span>
+                        </a>
+                        <a
+                          href={`mailto:${supplier.email}`}
+                          className="flex items-center gap-2 text-stone-700 hover:text-rose-500 transition-colors min-w-0"
+                        >
+                          <Mail className="w-3.5 h-3.5 text-stone-400 shrink-0" strokeWidth={2} />
+                          <span className="truncate">{supplier.email}</span>
+                        </a>
+                        <p className="flex items-start gap-2 text-stone-700 min-w-0 sm:col-span-2">
+                          <MapPin className="w-3.5 h-3.5 text-stone-400 shrink-0 mt-0.5" strokeWidth={2} />
+                          <span>
+                            {supplier.address ?? (
+                              <span className="text-stone-400">Address not provided yet</span>
+                            )}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -138,16 +184,14 @@ export default function Shipping() {
                 <span>Subtotal</span>
                 <span className="text-stone-800 font-medium">₦{subtotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Shipping</span>
-                <span className="text-stone-800 font-medium">₦{shippingFee.toFixed(2)}</span>
+              <div className="flex justify-between gap-4">
+                <span>Delivery</span>
+                <span className="text-right">Arranged with supplier</span>
               </div>
             </div>
             <div className="flex justify-between items-center py-4">
               <span className="text-sm font-semibold text-stone-800">Total</span>
-              <span className="text-lg font-bold text-stone-900">
-                ₦{(subtotal + shippingFee).toFixed(2)}
-              </span>
+              <span className="text-lg font-bold text-stone-900">₦{subtotal.toFixed(2)}</span>
             </div>
             <button
               onClick={handleContinue}

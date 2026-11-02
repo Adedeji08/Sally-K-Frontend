@@ -3,88 +3,22 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Banknote,
-  CheckCircle2,
   CreditCard,
   HelpCircle,
+  Mail,
   MapPin,
-  Package,
-  Truck,
+  Phone,
+  Store,
 } from "lucide-react";
 import Navbar from "../../layouts/navbar";
 import { useAuth } from "../../context/auth-context";
 import { useOrders } from "../../context/order-context";
-import { DELIVERY_OPTIONS } from "../../context/checkout-context";
-import type { DeliveryMethod } from "../../context/checkout-context";
-import {
-  DELIVERY_STAGE_META,
-  DELIVERY_STAGE_ORDER,
-  getDeliveryStage,
-} from "../../utils/delivery-status";
-import type { DeliveryStage } from "../../utils/delivery-status";
-
-const STAGE_ICONS: Record<DeliveryStage, typeof Package> = {
-  processing: Package,
-  shipped: Truck,
-  out_for_delivery: Truck,
-  delivered: CheckCircle2,
-};
+import type { CartSupplier } from "../../context/cart-context";
 
 const PAYMENT_STATUS_STYLES: Record<string, string> = {
   paid: "bg-emerald-50 text-emerald-600",
   pending: "bg-amber-50 text-amber-600",
 };
-
-function DeliveryTracker({
-  createdAt,
-  deliveryMethod,
-}: {
-  createdAt: number;
-  deliveryMethod: DeliveryMethod;
-}) {
-  const currentStage = getDeliveryStage(createdAt, deliveryMethod);
-  const currentIndex = DELIVERY_STAGE_ORDER.indexOf(currentStage);
-
-  return (
-    <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
-      <h2 className="text-sm font-semibold text-stone-800 mb-6">Delivery Tracking</h2>
-      <div className="grid grid-cols-4">
-        {DELIVERY_STAGE_ORDER.map((stage, index) => {
-          const Icon = STAGE_ICONS[stage];
-          const done = index <= currentIndex;
-          return (
-            <div key={stage} className="relative flex flex-col items-center text-center px-1">
-              {index > 0 && (
-                <div
-                  className={`absolute top-4 h-0.5 -z-10 ${
-                    index <= currentIndex ? "bg-rose-500" : "bg-stone-200"
-                  }`}
-                  style={{ left: "-50%", width: "100%" }}
-                />
-              )}
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center border-2 bg-white shrink-0 ${
-                  done ? "border-rose-500 text-rose-500" : "border-stone-200 text-stone-300"
-                }`}
-              >
-                <Icon className="w-4 h-4" strokeWidth={2} />
-              </div>
-              <p
-                className={`text-[10px] sm:text-xs mt-2 font-medium leading-tight ${
-                  done ? "text-stone-800" : "text-stone-400"
-                }`}
-              >
-                {DELIVERY_STAGE_META[stage].label}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-      <p className="text-xs text-stone-400 mt-5 text-center">
-        {DELIVERY_STAGE_META[currentStage].description}
-      </p>
-    </div>
-  );
-}
 
 export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -119,6 +53,17 @@ export default function OrderDetail() {
     );
   }
 
+  // Unique suppliers across the order's items (orders placed before supplier
+  // details existed simply have none).
+  const suppliers = Array.from(
+    new Map(
+      order.items
+        .map((item) => item.supplier)
+        .filter((s): s is CartSupplier => Boolean(s))
+        .map((s) => [s.id, s])
+    ).values()
+  );
+
   return (
     <>
       <Navbar />
@@ -150,7 +95,51 @@ export default function OrderDetail() {
           </span>
         </div>
 
-        <DeliveryTracker createdAt={order.createdAt} deliveryMethod={order.deliveryMethod} />
+        <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <h2 className="text-sm font-semibold text-stone-800">Delivery</h2>
+            <span
+              className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                order.fulfilled ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+              }`}
+            >
+              {order.fulfilled ? "Fulfilled" : "Awaiting supplier"}
+            </span>
+          </div>
+          <p className="text-sm text-stone-500 mb-4">
+            Delivery is arranged between you and your supplier — they'll reach out to agree on
+            timing and any delivery cost.
+          </p>
+          {suppliers.length > 0 && (
+            <div className="flex flex-col gap-3">
+              {suppliers.map((supplier) => (
+                <div key={supplier.id} className="border border-stone-200 rounded-xl p-4">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-stone-800 mb-2">
+                    <Store className="w-4 h-4 text-rose-500" strokeWidth={2} />
+                    {supplier.brandName}
+                    <span className="font-normal text-stone-400">· {supplier.contactName}</span>
+                  </p>
+                  <div className="flex flex-col gap-1.5 text-sm text-stone-600">
+                    <a href={`tel:${supplier.phone}`} className="flex items-center gap-2 hover:text-rose-500">
+                      <Phone className="w-3.5 h-3.5 text-stone-400" strokeWidth={2} />
+                      {supplier.phone}
+                    </a>
+                    <a href={`mailto:${supplier.email}`} className="flex items-center gap-2 hover:text-rose-500">
+                      <Mail className="w-3.5 h-3.5 text-stone-400" strokeWidth={2} />
+                      {supplier.email}
+                    </a>
+                    {supplier.address && (
+                      <p className="flex items-start gap-2">
+                        <MapPin className="w-3.5 h-3.5 text-stone-400 mt-0.5" strokeWidth={2} />
+                        {supplier.address}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
           <h2 className="text-sm font-semibold text-stone-800 mb-4">Items</h2>
@@ -179,12 +168,9 @@ export default function OrderDetail() {
           <div className="bg-white rounded-2xl shadow-sm p-6">
             <div className="flex items-center gap-2 mb-3">
               <MapPin className="w-4 h-4 text-rose-500" strokeWidth={2} />
-              <h2 className="text-sm font-semibold text-stone-800">Delivery</h2>
+              <h2 className="text-sm font-semibold text-stone-800">Your address</h2>
             </div>
-            <p className="text-sm text-stone-700 font-medium">
-              {DELIVERY_OPTIONS[order.deliveryMethod].label}
-            </p>
-            <p className="text-xs text-stone-400 mt-1">{order.address}</p>
+            <p className="text-sm text-stone-700">{order.address}</p>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm p-6">
@@ -211,10 +197,6 @@ export default function OrderDetail() {
             <div className="flex justify-between">
               <span>Subtotal</span>
               <span className="text-stone-800 font-medium">₦{order.subtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Shipping</span>
-              <span className="text-stone-800 font-medium">₦{order.shippingFee.toFixed(2)}</span>
             </div>
             <div className="flex justify-between pt-2 mt-1 border-t border-stone-100">
               <span className="text-sm font-semibold text-stone-800">Total</span>

@@ -1,19 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
-export type DeliveryMethod = "standard" | "express";
-
-export const DELIVERY_OPTIONS: Record<
-  DeliveryMethod,
-  { label: string; eta: string; fee: number }
-> = {
-  standard: { label: "Standard Delivery", eta: "3-5 business days", fee: 5 },
-  express: { label: "Express Delivery", eta: "1-2 business days", fee: 15 },
-};
-
+// Buyers arrange delivery directly with each supplier, so checkout only
+// collects the buyer's address — no delivery method or fee.
 interface ShippingDetails {
   address: string;
-  deliveryMethod: DeliveryMethod;
 }
 
 interface CheckoutContextValue {
