@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   ChevronDown,
   Gift,
@@ -17,13 +17,15 @@ import { useAuth } from "../context/auth-context";
 import { useCart } from "../context/cart-context";
 import { useWishlist } from "../context/wishlist-context";
 
+// Each link opens the /shop page pre-filtered; `match` is the query param that
+// marks it active.
 const NAV_LINKS = [
-  { label: "New Arrivals", to: "/?tag=New" },
-  { label: "Women", to: "/?category=Women" },
-  { label: "Men", to: "/?category=Men" },
-  { label: "Accessories", to: "/?category=Accessories" },
-  { label: "Sale", to: "/?tag=Sale" },
-];
+  { label: "New Arrivals", to: "/shop?tag=New", match: ["tag", "New"] },
+  { label: "Women", to: "/shop?category=Women", match: ["category", "Women"] },
+  { label: "Men", to: "/shop?category=Men", match: ["category", "Men"] },
+  { label: "Accessories", to: "/shop?category=Accessories", match: ["category", "Accessories"] },
+  { label: "Sale", to: "/shop?tag=Sale", match: ["tag", "Sale"] },
+] as const;
 
 const ACCOUNT_LINKS = [
   { to: "/profile", label: "Profile", icon: User },
@@ -41,6 +43,11 @@ const Navbar = () => {
   const accountMenuRef = useRef<HTMLDivElement>(null);
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
+
+  const location = useLocation();
+  const query = new URLSearchParams(location.search);
+  const isActive = ({ match: [key, value] }: (typeof NAV_LINKS)[number]) =>
+    location.pathname === "/shop" && query.get(key) === value;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -74,7 +81,12 @@ const Navbar = () => {
             <Link
               key={item.label}
               to={item.to}
-              className="text-[16px] font-medium text-[#2D2D2D] hover:text-black transition-colors"
+              aria-current={isActive(item) ? "page" : undefined}
+              className={`relative text-[16px] font-medium transition-colors py-1 ${
+                isActive(item)
+                  ? "text-[#ED1280] after:absolute after:left-0 after:right-0 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-[#ED1280]"
+                  : "text-[#2D2D2D] hover:text-black"
+              }`}
             >
               {item.label}
             </Link>
@@ -136,9 +148,13 @@ const Navbar = () => {
             )}
           </div>
 
-          <button className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-[#E9E1E4] flex items-center justify-center hover:bg-[#ddd4d8] transition-colors shrink-0">
+          <Link
+            to="/shop?focus=search"
+            aria-label="Search products"
+            className="w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-[#E9E1E4] flex items-center justify-center hover:bg-[#ddd4d8] transition-colors shrink-0"
+          >
             <Search className="w-5 h-5 sm:w-6 sm:h-6 text-[#1F1F1F]" strokeWidth={2} />
-          </button>
+          </Link>
 
           <Link
             to="/wishlist"
@@ -189,7 +205,10 @@ const Navbar = () => {
                 key={item.label}
                 to={item.to}
                 onClick={closeMobileMenu}
-                className="text-[15px] font-medium text-[#2D2D2D] hover:text-black transition-colors py-2"
+                aria-current={isActive(item) ? "page" : undefined}
+                className={`text-[15px] font-medium transition-colors py-2 ${
+                  isActive(item) ? "text-[#ED1280]" : "text-[#2D2D2D] hover:text-black"
+                }`}
               >
                 {item.label}
               </Link>

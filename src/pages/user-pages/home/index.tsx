@@ -469,8 +469,15 @@ function ProductCard({ product }: ProductCardProps) {
 
 // ── Product Grid ──────────────────────────────────────────
 
-function ProductGrid() {
+interface ProductGridProps {
+    // "shop" is the standalone /shop page: its heading follows the selected
+    // category/tag and the tabs write to the URL so the navbar stays in sync.
+    variant?: 'home' | 'shop';
+}
+
+function ProductGrid({ variant = 'home' }: ProductGridProps) {
     const [searchParams, setSearchParams] = useSearchParams();
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     const initialCategory = (() => {
         const param = searchParams.get('category');
@@ -495,16 +502,30 @@ function ProductGrid() {
         });
     };
 
-    // Nav links (e.g. "Sale", "Women") point back to "/" with query params. Since
-    // ProductGrid doesn't remount on same-route navigation, re-sync from the URL
-    // whenever it changes so clicking a nav link while already on the dashboard works.
+    // Nav links (e.g. "Women", "New Arrivals") change only the query string, so
+    // the grid doesn't remount — re-sync from the URL whenever it changes. A
+    // missing category means "All" (e.g. Women -> New Arrivals clears Women).
     useEffect(() => {
         const categoryParam = searchParams.get('category');
-        if (CATEGORIES.includes(categoryParam as Category)) {
-            setCat(categoryParam as Category);
-        }
+        setCat(CATEGORIES.includes(categoryParam as Category) ? (categoryParam as Category) : 'All');
         setTagFilter(searchParams.get('tag'));
     }, [searchParams]);
+
+    // The navbar's search button links to /shop?focus=search.
+    useEffect(() => {
+        if (searchParams.get('focus') === 'search') searchInputRef.current?.focus();
+    }, [searchParams]);
+
+    const selectCategory = (next: Category) => {
+        setCat(next);
+        if (variant !== 'shop') return;
+        setSearchParams(params => {
+            if (next === 'All') params.delete('category');
+            else params.set('category', next);
+            params.delete('focus');
+            return params;
+        }, { replace: true });
+    };
 
     const activeFilterCount =
         (priceBucket ? 1 : 0) + (selectedSizes.length ? 1 : 0) + (selectedDesigners.length ? 1 : 0);
@@ -559,8 +580,22 @@ function ProductGrid() {
         <main className="max-w-7xl mx-auto px-6 py-10 md:py-12">
             {/* Header */}
             <div className="text-center mb-8">
-                <h2 className="text-3xl md:text-4xl text-stone-900 mb-2">Discover Your Style</h2>
-                <p className="text-sm text-stone-400">Browse our curated collection of fashion-forward pieces.</p>
+                <h2 className="text-3xl md:text-4xl text-stone-900 mb-2">
+                    {variant === 'shop'
+                        ? tagFilter === 'New'
+                            ? 'New Arrivals'
+                            : tagFilter === 'Sale'
+                                ? 'Sale'
+                                : cat === 'All'
+                                    ? 'Shop All'
+                                    : cat
+                        : 'Discover Your Style'}
+                </h2>
+                <p className="text-sm text-stone-400">
+                    {variant === 'shop' && tagFilter === 'New'
+                        ? 'The latest pieces from our designers, newest first.'
+                        : 'Browse our curated collection of fashion-forward pieces.'}
+                </p>
             </div>
 
             {/* Search */}
@@ -580,6 +615,7 @@ function ProductGrid() {
                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
                 <input
+                    ref={searchInputRef}
                     type="text"
                     placeholder="Search for products, brands, and more"
                     value={search}
@@ -606,7 +642,7 @@ function ProductGrid() {
                 {CATEGORIES.map(c => (
                     <button
                         key={c}
-                        onClick={() => setCat(c)}
+                        onClick={() => selectCategory(c)}
                         className={`flex-shrink-0 px-5 py-2 rounded-full text-sm font-medium transition-all ${cat === c
                                 ? 'bg-stone-900 text-white'
                                 : 'text-stone-500 hover:text-stone-700'
@@ -863,6 +899,17 @@ export function UserDashboard() {
             <HeroBanner />
             <PromoBanners />
             <ProductGrid />
+            <Footer />
+        </>
+    );
+}
+
+// /shop — the catalogue on its own page, reached from the navbar links.
+export function ShopPage() {
+    return (
+        <>
+            <Navbar />
+            <ProductGrid variant="shop" />
             <Footer />
         </>
     );

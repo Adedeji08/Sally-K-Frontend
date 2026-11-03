@@ -1,4 +1,4 @@
-import type { Order } from "../context/order-context";
+import type { Order } from "../types/order";
 
 export type SalesPeriod = "daily" | "weekly" | "monthly" | "yearly";
 
@@ -7,8 +7,10 @@ export interface SalesPoint {
   value: number;
 }
 
-export function buildSalesSeries(orders: Order[], period: SalesPeriod): SalesPoint[] {
+export function buildSalesSeries(sourceOrders: Order[], period: SalesPeriod): SalesPoint[] {
   const now = new Date();
+  // API timestamps are ISO strings; bucket on epoch ms and the order subtotal.
+  const orders = sourceOrders.map((o) => ({ createdAt: new Date(o.createdAt).getTime(), total: o.subtotal }));
 
   if (period === "daily") {
     const points: SalesPoint[] = [];

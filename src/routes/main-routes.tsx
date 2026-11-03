@@ -1,12 +1,13 @@
 // Routes for the main application — everything reached once someone is
 // using the app (the buyer shop as well as the seller dashboard), as opposed
 // to the pre-app auth/onboarding screens declared in routes/index.tsx.
-import { UserDashboard } from "../pages/user-pages/home";
+import { ShopPage, UserDashboard } from "../pages/user-pages/home";
 import ProductDetail from "../pages/user-pages/product-detail";
 import DesignerStore from "../pages/user-pages/designer-store";
 import Cart from "../pages/user-pages/cart";
 import Shipping from "../pages/user-pages/shipping";
 import Payment from "../pages/user-pages/payment";
+import PaymentCallback from "../pages/user-pages/payment-callback";
 import Profile from "../pages/user-pages/profile";
 import Orders from "../pages/user-pages/orders";
 import OrderDetail from "../pages/user-pages/order-detail";
@@ -30,6 +31,13 @@ const MainRoutes = [
         path: "/",
         element: (
             <UserDashboard />
+        )
+    },
+    {
+        // Catalogue page the navbar links to: /shop?category=Women, /shop?tag=New, ...
+        path: "/shop",
+        element: (
+            <ShopPage />
         )
     },
     {
@@ -60,6 +68,14 @@ const MainRoutes = [
         path: "/payment",
         element: (
             <Payment />
+        )
+    },
+    {
+        // Paystack redirects here after checkout (backend PAYSTACK_CALLBACK_URL
+        // defaults to CORS_ORIGIN + "/payment/callback").
+        path: "/payment/callback",
+        element: (
+            <PaymentCallback />
         )
     },
     {

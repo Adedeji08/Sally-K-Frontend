@@ -1,75 +1,20 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Controller, useForm } from "react-hook-form";
-import {
-  Banknote,
-  Building2,
-  CheckCircle2,
-  Copy,
-  CreditCard,
-  ShieldCheck,
-} from "lucide-react";
+import { Building2, CreditCard, Lock, ShieldCheck } from "lucide-react";
 import Navbar from "../../layouts/navbar";
 import { useAuth } from "../../context/auth-context";
 import { useCart } from "../../context/cart-context";
 import { useCheckout } from "../../context/checkout-context";
-import { useOrders } from "../../context/order-context";
-
-type PaymentMethod = "card" | "transfer";
-
-interface CardFormValues {
-  cardNumber: string;
-  expiry: string;
-  cvc: string;
-  cardholderName: string;
-}
-
-const BANK_DETAILS = {
-  bankName: "Providus Bank",
-  accountName: "Sally-K Fashion Affairs Ltd",
-  accountNumber: "0123456789",
-};
-
-const fieldClass =
-  "w-full rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all";
-
-function CopyableRow({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard?.writeText(value).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
-  return (
-    <div className="flex items-center justify-between py-2.5 border-b border-stone-100 last:border-0">
-      <div>
-        <p className="text-xs text-stone-400">{label}</p>
-        <p className="text-sm font-semibold text-stone-800">{value}</p>
-      </div>
-      <button
-        type="button"
-        onClick={handleCopy}
-        className="flex items-center gap-1 text-xs font-medium text-rose-500 hover:text-rose-600 transition-colors"
-      >
-        <Copy className="w-3.5 h-3.5" strokeWidth={2} />
-        {copied ? "Copied" : "Copy"}
-      </button>
-    </div>
-  );
-}
+import useRequest from "../../hooks/use-req";
 
 export default function Payment() {
   const navigate = useNavigate();
   const { isAuthenticated, openLoginModal } = useAuth();
-  const { items, subtotal, clearCart, loaded: cartLoaded } = useCart();
-  const { shipping, clearShipping } = useCheckout();
-  const { addOrder } = useOrders();
-  const [method, setMethod] = useState<PaymentMethod>("card");
-  const [orderPlaced, setOrderPlaced] = useState(false);
-  const [placedOrderId, setPlacedOrderId] = useState("");
-  const { control, handleSubmit } = useForm<CardFormValues>();
+  const { items, subtotal, loaded: cartLoaded } = useCart();
+  const { shipping } = useCheckout();
+  const { makeRequest: initializePayment } = useRequest("/payments/initialize", "POST");
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -79,70 +24,37 @@ export default function Payment() {
   }, [isAuthenticated, navigate, openLoginModal]);
 
   useEffect(() => {
-    if (cartLoaded && !orderPlaced && items.length === 0) {
+    if (cartLoaded && items.length === 0) {
       navigate("/cart", { replace: true });
     }
-  }, [cartLoaded, items.length, orderPlaced, navigate]);
+  }, [cartLoaded, items.length, navigate]);
 
   useEffect(() => {
-    if (!orderPlaced && items.length > 0 && !shipping) {
+    if (items.length > 0 && !shipping) {
       navigate("/checkout/shipping", { replace: true });
     }
-  }, [shipping, items.length, orderPlaced, navigate]);
+  }, [shipping, items.length, navigate]);
 
   // Delivery is arranged (and paid for) directly with each supplier.
   const total = subtotal;
 
-  const handlePaySuccess = () => {
-    if (!shipping) return;
-    const order = addOrder({
-      items,
-      subtotal,
-      total,
-      address: shipping.address,
-      paymentMethod: method,
-      paymentStatus: method === "transfer" ? "pending" : "paid",
-    });
-    setPlacedOrderId(order.id);
-    clearCart();
-    clearShipping();
-    setOrderPlaced(true);
+  // POST /payments/initialize prices the server-side cart (no body), then we
+  // hand off to Paystack's hosted checkout. Paystack sends the buyer back to
+  // /payment/callback?reference=..., which verifies and creates the orders.
+  const handlePay = async () => {
+    setError("");
+    setStarting(true);
+    const [json, status] = await initializePayment();
+    const url = json?.data?.authorizationUrl;
+    if (status < 200 || status >= 300 || !url) {
+      setStarting(false);
+      setError(json?.message || "Couldn't start the payment. Please try again.");
+      return;
+    }
+    window.location.assign(url);
   };
 
-  if (orderPlaced) {
-    return (
-      <>
-        <Navbar />
-        <main className="max-w-lg mx-auto px-6 py-20 text-center">
-          <span className="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center mx-auto mb-5">
-            <CheckCircle2 className="w-8 h-8 text-rose-500" strokeWidth={2} />
-          </span>
-          <h1 className="text-2xl font-semibold text-stone-900 mb-2">
-            {method === "transfer" ? "Order received!" : "Payment successful!"}
-          </h1>
-          <p className="text-sm text-stone-500 mb-8">
-            {method === "transfer"
-              ? "Thanks — your order is pending until we confirm your bank transfer. We'll email you once it's verified."
-              : "Your order has been placed. You'll receive a confirmation email shortly."}
-          </p>
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            <Link
-              to="/"
-              className="inline-block bg-rose-500 hover:bg-rose-600 text-white font-semibold px-7 py-3 rounded-full text-sm transition-colors"
-            >
-              Continue shopping
-            </Link>
-            <Link
-              to={`/orders/${placedOrderId}`}
-              className="inline-block border border-stone-200 text-stone-700 font-semibold px-7 py-3 rounded-full text-sm hover:bg-stone-50 transition-colors"
-            >
-              View order
-            </Link>
-          </div>
-        </main>
-      </>
-    );
-  }
+  if (!isAuthenticated || items.length === 0) return null;
 
   return (
     <>
@@ -158,161 +70,46 @@ export default function Payment() {
         <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 mb-8">Checkout</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Payment form */}
+          {/* Paystack */}
           <div className="lg:col-span-2">
-            <div className="flex gap-2 mb-6">
-              <button
-                type="button"
-                onClick={() => setMethod("card")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-colors ${
-                  method === "card"
-                    ? "border-rose-500 bg-rose-50 text-rose-600"
-                    : "border-stone-200 text-stone-500 hover:border-stone-300"
-                }`}
-              >
-                <CreditCard className="w-4 h-4" strokeWidth={2} />
-                Pay with Card
-              </button>
-              <button
-                type="button"
-                onClick={() => setMethod("transfer")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-colors ${
-                  method === "transfer"
-                    ? "border-rose-500 bg-rose-50 text-rose-600"
-                    : "border-stone-200 text-stone-500 hover:border-stone-300"
-                }`}
-              >
-                <Banknote className="w-4 h-4" strokeWidth={2} />
-                Bank Transfer
-              </button>
-            </div>
-
-            {method === "card" ? (
-              <form
-                id="card-payment-form"
-                className="bg-white rounded-2xl shadow-sm p-6 flex flex-col gap-4"
-                onSubmit={handleSubmit(handlePaySuccess)}
-              >
-                <Controller
-                  name="cardNumber"
-                  control={control}
-                  rules={{
-                    required: "Card number is required",
-                    pattern: {
-                      value: /^[0-9\s]{16,19}$/,
-                      message: "Enter a valid 16-digit card number",
-                    },
-                  }}
-                  render={({ field, fieldState }) => (
-                    <div>
-                      <label className="text-sm font-medium text-stone-700 mb-1.5 block">
-                        Card number
-                      </label>
-                      <input
-                        {...field}
-                        placeholder="1234 5678 9012 3456"
-                        className={fieldClass}
-                      />
-                      {fieldState.error && (
-                        <p className="text-xs text-rose-500 mt-1">{fieldState.error.message}</p>
-                      )}
-                    </div>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Controller
-                    name="expiry"
-                    control={control}
-                    rules={{
-                      required: "Required",
-                      pattern: { value: /^(0[1-9]|1[0-2])\/\d{2}$/, message: "MM/YY" },
-                    }}
-                    render={({ field, fieldState }) => (
-                      <div>
-                        <label className="text-sm font-medium text-stone-700 mb-1.5 block">
-                          Expiry date
-                        </label>
-                        <input {...field} placeholder="MM/YY" className={fieldClass} />
-                        {fieldState.error && (
-                          <p className="text-xs text-rose-500 mt-1">{fieldState.error.message}</p>
-                        )}
-                      </div>
-                    )}
-                  />
-
-                  <Controller
-                    name="cvc"
-                    control={control}
-                    rules={{
-                      required: "Required",
-                      pattern: { value: /^[0-9]{3,4}$/, message: "3-4 digits" },
-                    }}
-                    render={({ field, fieldState }) => (
-                      <div>
-                        <label className="text-sm font-medium text-stone-700 mb-1.5 block">
-                          CVC
-                        </label>
-                        <input {...field} placeholder="123" className={fieldClass} />
-                        {fieldState.error && (
-                          <p className="text-xs text-rose-500 mt-1">{fieldState.error.message}</p>
-                        )}
-                      </div>
-                    )}
-                  />
-                </div>
-
-                <Controller
-                  name="cardholderName"
-                  control={control}
-                  rules={{ required: "Cardholder name is required" }}
-                  render={({ field, fieldState }) => (
-                    <div>
-                      <label className="text-sm font-medium text-stone-700 mb-1.5 block">
-                        Cardholder name
-                      </label>
-                      <input {...field} placeholder="Full name" className={fieldClass} />
-                      {fieldState.error && (
-                        <p className="text-xs text-rose-500 mt-1">{fieldState.error.message}</p>
-                      )}
-                    </div>
-                  )}
-                />
-
-                <div className="flex items-start gap-2 bg-stone-50 rounded-xl p-3 mt-1">
-                  <ShieldCheck className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" strokeWidth={2} />
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <span className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center shrink-0">
+                  <Lock className="w-5 h-5 text-rose-500" strokeWidth={2} />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-stone-800">Secure payment with Paystack</p>
                   <p className="text-xs text-stone-400">
-                    Your payment information is encrypted and never stored on our servers.
+                    You'll be taken to Paystack to pay, then brought straight back here.
                   </p>
                 </div>
-              </form>
-            ) : (
-              <div className="bg-white rounded-2xl shadow-sm p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-rose-500" strokeWidth={2} />
-                  </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                <div className="flex items-center gap-3 border border-stone-200 rounded-xl p-4">
+                  <CreditCard className="w-5 h-5 text-stone-400" strokeWidth={2} />
                   <div>
-                    <p className="text-sm font-semibold text-stone-800">Transfer to our account</p>
-                    <p className="text-xs text-stone-400">
-                      Use the details below, then confirm your transfer.
-                    </p>
+                    <p className="text-sm font-semibold text-stone-800">Card</p>
+                    <p className="text-xs text-stone-400">Visa, Mastercard, Verve</p>
                   </div>
                 </div>
-
-                <div className="border border-stone-100 rounded-xl px-4">
-                  <CopyableRow label="Bank name" value={BANK_DETAILS.bankName} />
-                  <CopyableRow label="Account name" value={BANK_DETAILS.accountName} />
-                  <CopyableRow label="Account number" value={BANK_DETAILS.accountNumber} />
-                  <CopyableRow label="Amount" value={`₦${total.toFixed(2)}`} />
+                <div className="flex items-center gap-3 border border-stone-200 rounded-xl p-4">
+                  <Building2 className="w-5 h-5 text-stone-400" strokeWidth={2} />
+                  <div>
+                    <p className="text-sm font-semibold text-stone-800">Bank transfer</p>
+                    <p className="text-xs text-stone-400">Pay from any Nigerian bank</p>
+                  </div>
                 </div>
+              </div>
 
-                <p className="text-xs text-stone-400 mt-4">
-                  Transfer the exact amount above. Your order will show as pending until we confirm
-                  receipt from the bank, usually within a few minutes.
+              <div className="flex items-start gap-2 bg-stone-50 rounded-xl p-3">
+                <ShieldCheck className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" strokeWidth={2} />
+                <p className="text-xs text-stone-400">
+                  Your card details are entered on Paystack and never touch our servers. Your
+                  order is only placed once Paystack confirms the payment.
                 </p>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Order summary */}
@@ -367,23 +164,15 @@ export default function Payment() {
               <span className="text-lg font-bold text-stone-900">₦{total.toFixed(2)}</span>
             </div>
 
-            {method === "card" ? (
-              <button
-                type="submit"
-                form="card-payment-form"
-                className="w-full bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 rounded-full text-sm transition-colors"
-              >
-                Pay ₦{total.toFixed(2)}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handlePaySuccess}
-                className="w-full bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 rounded-full text-sm transition-colors"
-              >
-                I've made the transfer
-              </button>
-            )}
+            {error && <p className="text-xs text-rose-500 mb-3">{error}</p>}
+            <button
+              type="button"
+              onClick={handlePay}
+              disabled={starting}
+              className="w-full bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 rounded-full text-sm transition-colors disabled:opacity-60"
+            >
+              {starting ? "Redirecting to Paystack..." : `Pay ₦${total.toFixed(2)} with Paystack`}
+            </button>
           </div>
         </div>
       </main>

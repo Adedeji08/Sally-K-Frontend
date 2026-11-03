@@ -1,4 +1,4 @@
-import type { Order } from "../context/order-context";
+import type { Order } from "../types/order";
 
 export interface RewardTier {
   name: string;
@@ -15,7 +15,8 @@ export const REWARD_TIERS: RewardTier[] = [
 export const POINTS_PER_DOLLAR = 10;
 
 export function getPointsForOrder(order: Order): number {
-  return Math.round(order.total * POINTS_PER_DOLLAR);
+  if (order.status === "CANCELLED") return 0;
+  return Math.round(order.subtotal * POINTS_PER_DOLLAR);
 }
 
 export interface RewardsSummary {
