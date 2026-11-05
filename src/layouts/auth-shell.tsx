@@ -11,12 +11,13 @@ interface AuthShellProps {
   children: ReactNode;
   title?: string;
   step?: Step;
+  wide?: boolean;
 }
 
-export default function AuthShell({ children, title, step }: AuthShellProps) {
+export default function AuthShell({ children, title, step, wide = false }: AuthShellProps) {
   return (
     <div className="min-h-screen bg-[#F7F2F4] flex justify-center px-4 py-10">
-      <div className="w-full max-w-[500px] flex flex-col items-center">
+      <div className={`w-full flex flex-col items-center ${wide ? "max-w-[960px]" : "max-w-[500px]"}`}>
         <div className="flex items-center gap-2 mb-8">
           <div className="w-7 h-7 flex items-center justify-center">
             <div className="relative w-5 h-5">
@@ -55,7 +56,7 @@ export default function AuthShell({ children, title, step }: AuthShellProps) {
         )}
 
         <div className="w-full">
-          <Card title={title} classNames="w-full">
+          <Card title={title} classNames="w-full" fullWidth={wide}>
             {children}
           </Card>
         </div>

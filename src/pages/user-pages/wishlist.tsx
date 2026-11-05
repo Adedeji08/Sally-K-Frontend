@@ -4,14 +4,17 @@ import { Heart } from "lucide-react";
 import Navbar from "../../layouts/navbar";
 import { useAuth } from "../../context/auth-context";
 import { useCart } from "../../context/cart-context";
+import { useToast } from "../../context/toast-context";
 import { useWishlist } from "../../context/wishlist-context";
-import { productsData } from "./home";
+import { useProductsData } from "./home";
 
 export default function Wishlist() {
   const navigate = useNavigate();
   const { isAuthenticated, openLoginModal } = useAuth();
   const { productIds, removeFromWishlist } = useWishlist();
   const { addItem } = useCart();
+  const toast = useToast();
+  const productsData = useProductsData();
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -84,21 +87,28 @@ export default function Wishlist() {
                     </h3>
                   </Link>
                   <div className="flex items-center justify-between mt-2">
-                    <p className="text-sm font-bold text-stone-900">${product.price}</p>
-                    <button
-                      onClick={() =>
-                        addItem({
-                          productId: product.id,
-                          name: product.name,
-                          designer: product.designer,
-                          price: product.price,
-                          image: product.image,
-                        })
-                      }
-                      className="text-xs font-semibold text-rose-500 hover:text-rose-600 transition-colors"
-                    >
-                      Add to Bag
-                    </button>
+                    <p className="text-sm font-bold text-stone-900">₦{product.price}</p>
+                    {product.stock <= 0 ? (
+                      <span className="text-xs font-semibold text-stone-400">Out of stock</span>
+                    ) : product.needsOptions ? (
+                      <Link
+                        to={`/product/${product.id}`}
+                        className="text-xs font-semibold text-rose-500 hover:text-rose-600 transition-colors"
+                      >
+                        Choose options
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          const result = await addItem({ productId: product.id });
+                          if (result.ok) toast.success(`${product.name} added to your bag.`);
+                          else toast.error(result.message);
+                        }}
+                        className="text-xs font-semibold text-rose-500 hover:text-rose-600 transition-colors"
+                      >
+                        Add to Bag
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

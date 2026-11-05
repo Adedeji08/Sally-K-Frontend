@@ -1,12 +1,23 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
 import { useAuth } from "../../context/auth-context";
+import type { AuthUser } from "../../context/auth-context";
 import LoginForm from "./login-form";
 
 export default function LoginModal() {
+  const navigate = useNavigate();
   const { isLoginModalOpen, closeLoginModal, loginModalReason } = useAuth();
 
   if (!isLoginModalOpen) return null;
+
+  const handleSuccess = (user: AuthUser) => {
+    closeLoginModal();
+    // Sellers don't have a use for whatever buyer page triggered this modal
+    // (e.g. "sign in to add to cart"), so send them straight to their dashboard.
+    if (user.role === "seller") {
+      navigate("/seller/dashboard");
+    }
+  };
 
   return (
     <div
@@ -35,7 +46,7 @@ export default function LoginModal() {
           {loginModalReason}
         </p>
 
-        <LoginForm onSuccess={closeLoginModal} />
+        <LoginForm onSuccess={handleSuccess} />
 
         <div className="flex items-center justify-center mt-5">
           <label className="text-xs md:text-sm text-[#475467]">

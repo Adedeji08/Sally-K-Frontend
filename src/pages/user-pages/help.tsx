@@ -6,6 +6,7 @@ import { ChevronDown, LifeBuoy, MessageCircle } from "lucide-react";
 import Navbar from "../../layouts/navbar";
 import { useAuth } from "../../context/auth-context";
 import { useOrders } from "../../context/order-context";
+import { orderNumber } from "../../types/order";
 import { useSupport } from "../../context/support-context";
 import type { TicketCategory } from "../../context/support-context";
 
@@ -47,7 +48,7 @@ const FAQS: FaqItem[] = [
     question: "How do rewards points work?",
     answer: (
       <>
-        You earn 10 points for every $1 you spend, and your tier automatically upgrades as you
+        You earn 10 points for every ₦1 you spend, and your tier automatically upgrades as you
         earn more. Check your balance on the{" "}
         <Link to="/rewards" className="text-rose-500 hover:text-rose-600 font-medium">
           Rewards
@@ -109,7 +110,7 @@ export default function Help() {
   const [searchParams] = useSearchParams();
   const prefilledOrderId = searchParams.get("order") ?? "";
   const { isAuthenticated, openLoginModal } = useAuth();
-  const { orders } = useOrders();
+  const { myOrders: orders } = useOrders();
   const { tickets, addTicket } = useSupport();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -238,7 +239,8 @@ export default function Help() {
                         <option value="">Not related to an order</option>
                         {orders.map((order) => (
                           <option key={order.id} value={order.id}>
-                            {order.id}
+                            {orderNumber(order.id)}
+                            {order.seller ? ` · ${order.seller.brandName}` : ""}
                           </option>
                         ))}
                       </select>
@@ -309,7 +311,7 @@ export default function Help() {
                   </div>
                   <p className="text-xs text-stone-400 mb-2">
                     {CATEGORY_OPTIONS.find((c) => c.value === ticket.category)?.label}
-                    {ticket.orderId && ` · ${ticket.orderId}`}
+                    {ticket.orderId && ` · ${orderNumber(ticket.orderId)}`}
                     {" · "}
                     {new Date(ticket.createdAt).toLocaleDateString(undefined, {
                       year: "numeric",

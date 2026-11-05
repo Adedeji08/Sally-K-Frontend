@@ -2,16 +2,16 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 interface WishlistContextValue {
-  productIds: number[];
-  isWishlisted: (productId: number) => boolean;
-  toggleWishlist: (productId: number) => void;
-  removeFromWishlist: (productId: number) => void;
+  productIds: string[];
+  isWishlisted: (productId: string) => boolean;
+  toggleWishlist: (productId: string) => void;
+  removeFromWishlist: (productId: string) => void;
 }
 
 const WishlistContext = createContext<WishlistContextValue | null>(null);
 const WISHLIST_KEY = "wishlist";
 
-function readWishlistFromStorage(): number[] {
+function readWishlistFromStorage(): string[] {
   try {
     const raw = localStorage.getItem(WISHLIST_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -21,21 +21,21 @@ function readWishlistFromStorage(): number[] {
 }
 
 export function WishlistProvider({ children }: { children: ReactNode }) {
-  const [productIds, setProductIds] = useState<number[]>(() => readWishlistFromStorage());
+  const [productIds, setProductIds] = useState<string[]>(() => readWishlistFromStorage());
 
   useEffect(() => {
     localStorage.setItem(WISHLIST_KEY, JSON.stringify(productIds));
   }, [productIds]);
 
-  const isWishlisted = (productId: number) => productIds.includes(productId);
+  const isWishlisted = (productId: string) => productIds.includes(productId);
 
-  const toggleWishlist = (productId: number) => {
+  const toggleWishlist = (productId: string) => {
     setProductIds((prev) =>
       prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]
     );
   };
 
-  const removeFromWishlist = (productId: number) => {
+  const removeFromWishlist = (productId: string) => {
     setProductIds((prev) => prev.filter((id) => id !== productId));
   };
 

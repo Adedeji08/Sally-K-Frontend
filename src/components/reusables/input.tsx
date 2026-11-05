@@ -141,7 +141,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           )}
 
           {prefix && (
-            <span className="absolute left-10 top-1/2 -translate-y-1/2 text-gray-500 select-none text-sm">
+            <span
+              className={`absolute ${
+                icon ? "left-10" : "left-4"
+              } top-1/2 -translate-y-1/2 text-gray-500 select-none text-sm whitespace-nowrap`}
+            >
               {prefix}
             </span>
           )}
@@ -173,15 +177,25 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
                 "text-center placeholder:text-center":
                   placeholderPosition === "center",
                 "pl-10": !!icon && !prefix,
-                "pl-[75px]": !!icon && !!prefix,
-                "pl-[55px]": !icon && !!prefix,
                 "pr-10": !!rightIcon,
               }
             )}
+            style={
+              // Prefix width varies with its text, so pad the input to fit it
+              // exactly (ch = width of one character in the input's font)
+              // instead of a fixed guess that clips or crowds longer prefixes.
+              prefix
+                ? {
+                    paddingLeft: `calc(${icon ? "2.5rem" : "1rem"} + ${
+                      typeof prefix === "string" ? prefix.length : 8
+                    }ch + 0.4rem)`,
+                  }
+                : undefined
+            }
             onChange={handleInputChange}
             onBlur={handleBlur}
             onPaste={onPaste}
-            onKeyDown={onKeyDown} 
+            onKeyDown={onKeyDown}
             value={value}
             type={type === "number" ? "text" : type}
             name={name}

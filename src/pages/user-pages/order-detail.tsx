@@ -1,106 +1,44 @@
 import { useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import {
-  ArrowLeft,
-  Banknote,
-  CheckCircle2,
-  CreditCard,
-  HelpCircle,
-  MapPin,
-  Package,
-  Truck,
-} from "lucide-react";
+import { ArrowLeft, HelpCircle, Lock, MapPin, Store } from "lucide-react";
+import { ClipLoader } from "react-spinners";
 import Navbar from "../../layouts/navbar";
 import { useAuth } from "../../context/auth-context";
 import { useOrders } from "../../context/order-context";
-import { DELIVERY_OPTIONS } from "../../context/checkout-context";
-import type { DeliveryMethod } from "../../context/checkout-context";
-import {
-  DELIVERY_STAGE_META,
-  DELIVERY_STAGE_ORDER,
-  getDeliveryStage,
-} from "../../utils/delivery-status";
-import type { DeliveryStage } from "../../utils/delivery-status";
-
-const STAGE_ICONS: Record<DeliveryStage, typeof Package> = {
-  processing: Package,
-  shipped: Truck,
-  out_for_delivery: Truck,
-  delivered: CheckCircle2,
-};
-
-const PAYMENT_STATUS_STYLES: Record<string, string> = {
-  paid: "bg-emerald-50 text-emerald-600",
-  pending: "bg-amber-50 text-amber-600",
-};
-
-function DeliveryTracker({
-  createdAt,
-  deliveryMethod,
-}: {
-  createdAt: number;
-  deliveryMethod: DeliveryMethod;
-}) {
-  const currentStage = getDeliveryStage(createdAt, deliveryMethod);
-  const currentIndex = DELIVERY_STAGE_ORDER.indexOf(currentStage);
-
-  return (
-    <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
-      <h2 className="text-sm font-semibold text-stone-800 mb-6">Delivery Tracking</h2>
-      <div className="grid grid-cols-4">
-        {DELIVERY_STAGE_ORDER.map((stage, index) => {
-          const Icon = STAGE_ICONS[stage];
-          const done = index <= currentIndex;
-          return (
-            <div key={stage} className="relative flex flex-col items-center text-center px-1">
-              {index > 0 && (
-                <div
-                  className={`absolute top-4 h-0.5 -z-10 ${
-                    index <= currentIndex ? "bg-rose-500" : "bg-stone-200"
-                  }`}
-                  style={{ left: "-50%", width: "100%" }}
-                />
-              )}
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center border-2 bg-white shrink-0 ${
-                  done ? "border-rose-500 text-rose-500" : "border-stone-200 text-stone-300"
-                }`}
-              >
-                <Icon className="w-4 h-4" strokeWidth={2} />
-              </div>
-              <p
-                className={`text-[10px] sm:text-xs mt-2 font-medium leading-tight ${
-                  done ? "text-stone-800" : "text-stone-400"
-                }`}
-              >
-                {DELIVERY_STAGE_META[stage].label}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-      <p className="text-xs text-stone-400 mt-5 text-center">
-        {DELIVERY_STAGE_META[currentStage].description}
-      </p>
-    </div>
-  );
-}
+import useOrder from "../../hooks/use-order";
+import { ORDER_STATUS_META, itemVariant, orderNumber } from "../../types/order";
 
 export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, openLoginModal } = useAuth();
-  const { getOrder } = useOrders();
-  const order = id ? getOrder(id) : undefined;
+  const { myOrders } = useOrders();
+  // GET /orders/mine/:id — 404s for orders that aren't this buyer's.
+  const { order, loading } = useOrder(
+    id,
+    "mine",
+    myOrders.find((o) => o.id === id)
+  );
 
   useEffect(() => {
     if (!isAuthenticated) {
-      openLoginModal("Sign in to view this order.");
+      openLoginModal("Sign in to view your order.");
       navigate("/", { replace: true });
     }
   }, [isAuthenticated, navigate, openLoginModal]);
 
   if (!isAuthenticated) return null;
+
+  if (!order && loading) {
+    return (
+      <>
+        <Navbar />
+        <div className="flex justify-center py-24">
+          <ClipLoader size={28} color="#f43f5e" />
+        </div>
+      </>
+    );
+  }
 
   if (!order) {
     return (
@@ -119,6 +57,8 @@ export default function OrderDetail() {
     );
   }
 
+  const status = ORDER_STATUS_META[order.status];
+
   return (
     <>
       <Navbar />
@@ -133,7 +73,7 @@ export default function OrderDetail() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-semibold text-stone-900">{order.id}</h1>
+            <h1 className="text-2xl font-semibold text-stone-900">{orderNumber(order.id)}</h1>
             <p className="text-sm text-stone-400">
               Placed on{" "}
               {new Date(order.createdAt).toLocaleDateString(undefined, {
@@ -143,83 +83,96 @@ export default function OrderDetail() {
               })}
             </p>
           </div>
-          <span
-            className={`text-xs font-semibold px-3 py-1.5 rounded-full capitalize ${PAYMENT_STATUS_STYLES[order.paymentStatus]}`}
-          >
-            {order.paymentStatus === "pending" ? "Payment pending" : "Payment confirmed"}
+          <span className={`text-xs font-semibold px-3 py-1.5 rounded-full ${status.className}`}>
+            {order.status === "PENDING" ? "Awaiting supplier" : status.label}
           </span>
         </div>
 
-        <DeliveryTracker createdAt={order.createdAt} deliveryMethod={order.deliveryMethod} />
+        {/* Supplier / delivery */}
+        <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
+          <h2 className="text-sm font-semibold text-stone-800 mb-2">Delivery</h2>
+          <p className="text-sm text-stone-500 mb-4">
+            {order.status === "CANCELLED"
+              ? "This order was cancelled by the supplier."
+              : order.status === "FULFILLED"
+                ? "Your supplier has marked this order as fulfilled."
+                : "Delivery is arranged between you and your supplier — they'll reach out to agree on timing and any delivery cost."}
+          </p>
+          {order.seller && (
+            <div className="border border-stone-200 rounded-xl p-4">
+              <Link
+                to={`/designer/${encodeURIComponent(order.seller.brandName)}`}
+                className="flex items-center gap-3 mb-2 group"
+              >
+                {order.seller.logoUrl ? (
+                  <img
+                    src={order.seller.logoUrl}
+                    alt=""
+                    className="w-9 h-9 rounded-full object-cover border border-stone-100"
+                  />
+                ) : (
+                  <span className="w-9 h-9 rounded-full bg-rose-50 flex items-center justify-center">
+                    <Store className="w-4 h-4 text-rose-500" strokeWidth={2} />
+                  </span>
+                )}
+                <span className="text-sm font-semibold text-stone-800 group-hover:text-rose-500 transition-colors">
+                  {order.seller.brandName}
+                </span>
+              </Link>
+              <p className="flex items-start gap-2 text-sm text-stone-600">
+                <MapPin className="w-3.5 h-3.5 text-stone-400 mt-0.5 shrink-0" strokeWidth={2} />
+                {order.seller.address ?? (
+                  <span className="text-stone-400">Address not provided</span>
+                )}
+              </p>
+            </div>
+          )}
+        </div>
 
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
           <h2 className="text-sm font-semibold text-stone-800 mb-4">Items</h2>
           <div className="flex flex-col gap-4 divide-y divide-stone-100">
             {order.items.map((item) => (
-              <div key={item.lineId} className="flex items-center gap-4 pt-4 first:pt-0">
+              <div key={item.id} className="flex items-center gap-4 pt-4 first:pt-0">
                 <div className="w-16 h-16 rounded-xl overflow-hidden bg-stone-100 shrink-0">
-                  <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                  {item.image && (
+                    <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-stone-800 truncate">{item.name}</p>
+                  {item.productId ? (
+                    <Link
+                      to={`/product/${item.productId}`}
+                      className="text-sm font-semibold text-stone-800 truncate block hover:text-rose-500 transition-colors"
+                    >
+                      {item.name}
+                    </Link>
+                  ) : (
+                    <p className="text-sm font-semibold text-stone-800 truncate">{item.name}</p>
+                  )}
                   <p className="text-xs text-stone-400 mt-0.5">
-                    {[item.color, item.size].filter(Boolean).join(" · ") || "One Size"} · Qty{" "}
-                    {item.quantity}
+                    {itemVariant(item)} · Qty {item.quantity} · ₦{item.price.toFixed(2)} each
                   </p>
                 </div>
                 <p className="text-sm font-bold text-stone-900">
-                  ${(item.price * item.quantity).toFixed(2)}
+                  ₦{(item.price * item.quantity).toFixed(2)}
                 </p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-2xl shadow-sm p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <MapPin className="w-4 h-4 text-rose-500" strokeWidth={2} />
-              <h2 className="text-sm font-semibold text-stone-800">Delivery</h2>
-            </div>
-            <p className="text-sm text-stone-700 font-medium">
-              {DELIVERY_OPTIONS[order.deliveryMethod].label}
-            </p>
-            <p className="text-xs text-stone-400 mt-1">{order.address}</p>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm p-6">
-            <div className="flex items-center gap-2 mb-3">
-              {order.paymentMethod === "card" ? (
-                <CreditCard className="w-4 h-4 text-rose-500" strokeWidth={2} />
-              ) : (
-                <Banknote className="w-4 h-4 text-rose-500" strokeWidth={2} />
-              )}
-              <h2 className="text-sm font-semibold text-stone-800">Payment</h2>
-            </div>
-            <p className="text-sm text-stone-700 font-medium capitalize">
-              {order.paymentMethod === "card" ? "Card" : "Bank Transfer"}
-            </p>
-            <p className="text-xs text-stone-400 mt-1">
-              {order.paymentStatus === "pending" ? "Awaiting confirmation" : "Payment confirmed"}
-            </p>
-          </div>
-        </div>
-
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
-          <h2 className="text-sm font-semibold text-stone-800 mb-3">Summary</h2>
-          <div className="flex flex-col gap-2 text-sm text-stone-500">
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span className="text-stone-800 font-medium">${order.subtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Shipping</span>
-              <span className="text-stone-800 font-medium">${order.shippingFee.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between pt-2 mt-1 border-t border-stone-100">
-              <span className="text-sm font-semibold text-stone-800">Total</span>
-              <span className="text-lg font-bold text-stone-900">${order.total.toFixed(2)}</span>
-            </div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-stone-800">Summary</h2>
+            <span className="flex items-center gap-1.5 text-xs text-emerald-600">
+              <Lock className="w-3.5 h-3.5" strokeWidth={2} />
+              Paid via Paystack
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-semibold text-stone-800">Total paid</span>
+            <span className="text-lg font-bold text-stone-900">₦{order.subtotal.toFixed(2)}</span>
           </div>
         </div>
 

@@ -4,6 +4,7 @@ import { Award, Gem, Medal, Sparkles, Trophy } from "lucide-react";
 import Navbar from "../../layouts/navbar";
 import { useAuth } from "../../context/auth-context";
 import { useOrders } from "../../context/order-context";
+import { orderNumber } from "../../types/order";
 import { REWARD_TIERS, getPointsForOrder, getRewardsSummary } from "../../utils/rewards";
 
 const TIER_STYLES: Record<string, { icon: typeof Medal; bg: string; text: string }> = {
@@ -16,7 +17,7 @@ const TIER_STYLES: Record<string, { icon: typeof Medal; bg: string; text: string
 export default function Rewards() {
   const navigate = useNavigate();
   const { isAuthenticated, openLoginModal } = useAuth();
-  const { orders } = useOrders();
+  const { myOrders: orders } = useOrders();
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -112,7 +113,7 @@ export default function Rewards() {
         <div className="bg-rose-50 rounded-2xl p-5 mb-6">
           <p className="text-sm text-rose-700">
             <span className="font-semibold">How you earn points:</span> you get 10 points for
-            every $1 you spend. Points are calculated automatically from your order history and
+            every ₦1 you spend. Points are calculated automatically from your order history and
             your tier upgrades as your total grows.
           </p>
         </div>
@@ -141,14 +142,14 @@ export default function Rewards() {
                   className="flex items-center justify-between bg-white rounded-2xl shadow-sm p-4 hover:shadow-md transition-shadow"
                 >
                   <div>
-                    <p className="text-sm font-semibold text-stone-800">{order.id}</p>
+                    <p className="text-sm font-semibold text-stone-800">{orderNumber(order.id)}</p>
                     <p className="text-xs text-stone-400">
                       {new Date(order.createdAt).toLocaleDateString(undefined, {
                         year: "numeric",
                         month: "short",
                         day: "numeric",
                       })}{" "}
-                      · ${order.total.toFixed(2)}
+                      · ₦{order.subtotal.toFixed(2)}
                     </p>
                   </div>
                   <p className="text-sm font-bold text-rose-500">

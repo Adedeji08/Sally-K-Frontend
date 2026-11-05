@@ -1,4 +1,8 @@
 
+// Unauthenticated / pre-app screens (login, signup, password reset, seller
+// onboarding) plus the final route assembly. The authenticated app itself —
+// buyer shop, cart/checkout, orders, and the seller dashboard — lives in
+// ./main-routes.
 import { useRoutes } from "react-router-dom";
 import MainRoutes from "./main-routes";
 import NotFound from "../pages/not-found";
@@ -7,21 +11,12 @@ import ForgotPassword from "../pages/auth/forgot-password";
 import SetPassword from "../pages/auth/set-password";
 import SignupRole from "../pages/auth/signup-role";
 import Signup from "../pages/auth/signup";
+import VerifyEmail from "../pages/auth/verify-email";
 import OnboardingSuccess from "../pages/auth/onboarding-success";
 import StoreSetup from "../pages/seller-pages/store-setup";
 import Verification from "../pages/seller-pages/verification";
-import ProductDetail from "../pages/user-pages/product-detail";
-import Cart from "../pages/user-pages/cart";
-import Shipping from "../pages/user-pages/shipping";
-import Payment from "../pages/user-pages/payment";
-import Profile from "../pages/user-pages/profile";
-import Orders from "../pages/user-pages/orders";
-import OrderDetail from "../pages/user-pages/order-detail";
-import Wishlist from "../pages/user-pages/wishlist";
-import Help from "../pages/user-pages/help";
-import Rewards from "../pages/user-pages/rewards";
-
-
+import BankAccountSetup from "../pages/seller-pages/bank-account";
+import Subscription from "../pages/seller-pages/subscription";
 
 export default function ThemeRoutes() {
 
@@ -40,7 +35,7 @@ export default function ThemeRoutes() {
             )
         },
         {
-            path: "/set-password",
+            path: "/reset-password",
             element: (
                 <SetPassword />
             )
@@ -58,6 +53,12 @@ export default function ThemeRoutes() {
             )
         },
         {
+            path: "/verify-email",
+            element: (
+                <VerifyEmail />
+            )
+        },
+        {
             path: "/onboarding/store",
             element: (
                 <StoreSetup />
@@ -70,69 +71,21 @@ export default function ThemeRoutes() {
             )
         },
         {
+            path: "/onboarding/bank-account",
+            element: (
+                <BankAccountSetup />
+            )
+        },
+        {
+            path: "/onboarding/subscription",
+            element: (
+                <Subscription />
+            )
+        },
+        {
             path: "/onboarding/success",
             element: (
                 <OnboardingSuccess />
-            )
-        },
-        {
-            path: "/product/:id",
-            element: (
-                <ProductDetail />
-            )
-        },
-        {
-            path: "/cart",
-            element: (
-                <Cart />
-            )
-        },
-        {
-            path: "/checkout/shipping",
-            element: (
-                <Shipping />
-            )
-        },
-        {
-            path: "/payment",
-            element: (
-                <Payment />
-            )
-        },
-        {
-            path: "/profile",
-            element: (
-                <Profile />
-            )
-        },
-        {
-            path: "/orders",
-            element: (
-                <Orders />
-            )
-        },
-        {
-            path: "/orders/:id",
-            element: (
-                <OrderDetail />
-            )
-        },
-        {
-            path: "/wishlist",
-            element: (
-                <Wishlist />
-            )
-        },
-        {
-            path: "/help",
-            element: (
-                <Help />
-            )
-        },
-        {
-            path: "/rewards",
-            element: (
-                <Rewards />
             )
         },
 

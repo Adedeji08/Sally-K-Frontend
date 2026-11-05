@@ -1,11 +1,24 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import Navbar from "../../layouts/navbar";
+import { ClipLoader } from "react-spinners";
 import { useCart } from "../../context/cart-context";
+import { useToast } from "../../context/toast-context";
 
 export default function Cart() {
   const navigate = useNavigate();
-  const { items, subtotal, updateQuantity, removeItem } = useCart();
+  const toast = useToast();
+  const { items, subtotal, loaded, updateQuantity, removeItem } = useCart();
+
+  const changeQuantity = async (lineId: string, quantity: number) => {
+    const result = await updateQuantity(lineId, quantity);
+    if (!result.ok) toast.error(result.message);
+  };
+
+  const remove = async (lineId: string) => {
+    const result = await removeItem(lineId);
+    if (!result.ok) toast.error(result.message);
+  };
 
   return (
     <>
@@ -19,7 +32,11 @@ export default function Cart() {
         </p>
         <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 mb-8">Shopping Bag</h1>
 
-        {items.length === 0 ? (
+        {!loaded && items.length === 0 ? (
+          <div className="flex justify-center py-20">
+            <ClipLoader size={28} color="#f43f5e" />
+          </div>
+        ) : items.length === 0 ? (
           <div className="text-center py-20">
             <span className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-4">
               <ShoppingBag className="w-7 h-7 text-stone-400" strokeWidth={2} />
@@ -58,13 +75,18 @@ export default function Cart() {
                       {[item.color, item.size].filter(Boolean).join(" · ") || "One Size"}
                     </p>
                     <p className="text-sm font-bold text-stone-900 mt-1">
-                      ${item.price.toFixed(2)}
+                      ₦{item.price.toFixed(2)}
                     </p>
+                    {!item.isActive ? (
+                      <p className="text-xs text-rose-500 mt-1">No longer available</p>
+                    ) : item.quantity > item.stock ? (
+                      <p className="text-xs text-rose-500 mt-1">Only {item.stock} left in stock</p>
+                    ) : null}
                   </div>
 
                   <div className="flex items-center gap-3 border border-stone-200 rounded-full px-3 py-1.5">
                     <button
-                      onClick={() => updateQuantity(item.lineId, item.quantity - 1)}
+                      onClick={() => changeQuantity(item.lineId, item.quantity - 1)}
                       aria-label="Decrease quantity"
                     >
                       <Minus className="w-3.5 h-3.5 text-stone-500" strokeWidth={2} />
@@ -73,7 +95,9 @@ export default function Cart() {
                       {item.quantity}
                     </span>
                     <button
-                      onClick={() => updateQuantity(item.lineId, item.quantity + 1)}
+                      onClick={() => changeQuantity(item.lineId, item.quantity + 1)}
+                      disabled={item.quantity >= item.stock}
+                      className="disabled:opacity-30 disabled:cursor-not-allowed"
                       aria-label="Increase quantity"
                     >
                       <Plus className="w-3.5 h-3.5 text-stone-500" strokeWidth={2} />
@@ -81,7 +105,7 @@ export default function Cart() {
                   </div>
 
                   <button
-                    onClick={() => removeItem(item.lineId)}
+                    onClick={() => remove(item.lineId)}
                     className="text-stone-300 hover:text-rose-500 transition-colors"
                     aria-label="Remove item"
                   >
@@ -97,7 +121,7 @@ export default function Cart() {
               <div className="flex flex-col gap-2 text-sm text-stone-500 pb-4 border-b border-stone-100">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span className="text-stone-800 font-medium">${subtotal.toFixed(2)}</span>
+                  <span className="text-stone-800 font-medium">₦{subtotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Shipping</span>
@@ -110,7 +134,7 @@ export default function Cart() {
               </div>
               <div className="flex justify-between items-center py-4">
                 <span className="text-sm font-semibold text-stone-800">Total</span>
-                <span className="text-lg font-bold text-stone-900">${subtotal.toFixed(2)}</span>
+                <span className="text-lg font-bold text-stone-900">₦{subtotal.toFixed(2)}</span>
               </div>
               <button
                 onClick={() => navigate("/checkout/shipping")}
