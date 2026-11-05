@@ -1,22 +1,37 @@
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
+import { ClipLoader } from "react-spinners";
 import { useSellerProducts } from "../../context/seller-product-context";
+import useProduct from "../../hooks/use-product";
+import { useToast } from "../../context/toast-context";
 import ProductForm from "../../components/seller/product-form";
 import type { SellerProductInput } from "../../context/seller-product-context";
 
 export default function ProductEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
   const { getProduct, updateProduct } = useSellerProducts();
-  const product = id ? getProduct(Number(id)) : undefined;
+  const [submitting, setSubmitting] = useState(false);
+
+  // GET /products/mine/:id — works for inactive listings too. The cached row
+  // from the products list (if any) renders first while it loads.
+  const { product, loading } = useProduct(id, "mine", id ? getProduct(id) : undefined);
+
+  if (!product && loading) {
+    return (
+      <div className="max-w-xl mx-auto flex justify-center py-20">
+        <ClipLoader size={28} color="#ED1280" />
+      </div>
+    );
+  }
 
   if (!product) {
     return (
       <div className="max-w-xl mx-auto text-center py-16">
         <p className="text-lg font-semibold text-[#121212] mb-2">Product not found</p>
-        <p className="text-sm text-[#65799A] mb-6">
-          This listing may have been deleted.
-        </p>
+        <p className="text-sm text-[#65799A] mb-6">This listing may have been deleted.</p>
         <Link to="/seller/products" className="text-[#ED1280] font-medium hover:opacity-80">
           Back to products
         </Link>
@@ -24,8 +39,17 @@ export default function ProductEdit() {
     );
   }
 
-  const handleSubmit = (input: SellerProductInput) => {
-    updateProduct(product.id, input);
+  const handleSubmit = async (input: SellerProductInput) => {
+    setSubmitting(true);
+    const updated = await updateProduct(product.id, input);
+    setSubmitting(false);
+
+    if (!updated) {
+      toast.error("Couldn't save your changes. Please try again.");
+      return;
+    }
+
+    toast.success("Product updated.");
     navigate("/seller/products");
   };
 
@@ -44,9 +68,12 @@ export default function ProductEdit() {
 
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <ProductForm
+          // Form defaults are read once; remount if the fetch brings newer data.
+          key={`${product.id}-${product.updatedAt}`}
           initialValues={product}
           onSubmit={handleSubmit}
           submitLabel="Save Changes"
+          submitting={submitting}
         />
       </div>
     </div>

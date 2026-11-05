@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import Input from "../reusables/input";
 import Button from "../reusables/button";
 import { useAuth } from "../../context/auth-context";
 import type { AuthUser } from "../../context/auth-context";
+import useRequest from "../../hooks/use-req";
+import { useToast } from "../../context/toast-context";
 
 interface LoginFormValues {
   email: string;
@@ -17,12 +19,40 @@ interface LoginFormProps {
 }
 
 export default function LoginForm({ onSuccess }: LoginFormProps) {
-  const { login } = useAuth();
+  const { loginWithSession } = useAuth();
+  const navigate = useNavigate();
+  const toast = useToast();
   const [viewPassword, setViewPassword] = useState(false);
   const { control, handleSubmit } = useForm<LoginFormValues>();
+  const { loading, makeRequest } = useRequest("/auth/login", "POST");
 
-  const onSubmit = (values: LoginFormValues) => {
-    const user = login(values.email, values.password);
+  const onSubmit = async (values: LoginFormValues) => {
+    const toastId = toast.loading("Logging in...");
+    const [json, status] = await makeRequest(values);
+
+    if (status < 200 || status >= 300) {
+      toast.update(toastId, "error", json?.message || "Invalid email or password.");
+      return;
+    }
+
+    const token = json?.token || json?.data?.token;
+    const rawUser = json?.user || json?.data?.user || json?.data;
+
+    if (!token) {
+      toast.update(toastId, "error", "Something went wrong logging you in. Please try again.");
+      return;
+    }
+
+    const user = loginWithSession(token, rawUser);
+
+    if (user.emailVerified === false) {
+      toast.update(toastId, "info", "Please verify your email to continue.");
+      const redirectTo = user.role === "seller" ? "/seller/dashboard" : "/";
+      navigate("/verify-email", { state: { email: user.email, redirectTo } });
+      return;
+    }
+
+    toast.update(toastId, "success", "Logged in successfully.");
     onSuccess?.(user);
   };
 
@@ -87,8 +117,14 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
         </Link>
       </div>
 
-      <Button size="lg" variant="primary" type="submit" className="font-normal mt-2">
-        Log in
+      <Button
+        size="lg"
+        variant="primary"
+        type="submit"
+        disabled={loading}
+        className="font-normal mt-2"
+      >
+        {loading ? "Logging in..." : "Log in"}
       </Button>
     </form>
   );

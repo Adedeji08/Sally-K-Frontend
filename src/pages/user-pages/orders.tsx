@@ -3,20 +3,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { Package } from "lucide-react";
 import Navbar from "../../layouts/navbar";
 import { useAuth } from "../../context/auth-context";
+import { ClipLoader } from "react-spinners";
 import { useOrders } from "../../context/order-context";
-import { DELIVERY_STAGE_META, getDeliveryStage } from "../../utils/delivery-status";
-
-const STAGE_STYLES: Record<string, string> = {
-  processing: "bg-amber-50 text-amber-600",
-  shipped: "bg-blue-50 text-blue-600",
-  out_for_delivery: "bg-violet-50 text-violet-600",
-  delivered: "bg-emerald-50 text-emerald-600",
-};
+import { ORDER_STATUS_META, orderNumber } from "../../types/order";
 
 export default function Orders() {
   const navigate = useNavigate();
   const { isAuthenticated, openLoginModal } = useAuth();
-  const { orders } = useOrders();
+  const { myOrders: orders, myOrdersLoaded } = useOrders();
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -39,7 +33,11 @@ export default function Orders() {
         </p>
         <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 mb-8">My Orders</h1>
 
-        {orders.length === 0 ? (
+        {!myOrdersLoaded ? (
+          <div className="flex justify-center py-20">
+            <ClipLoader size={28} color="#f43f5e" />
+          </div>
+        ) : orders.length === 0 ? (
           <div className="text-center py-20">
             <span className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-4">
               <Package className="w-7 h-7 text-stone-400" strokeWidth={2} />
@@ -58,7 +56,6 @@ export default function Orders() {
         ) : (
           <div className="flex flex-col gap-4">
             {orders.map((order) => {
-              const stage = getDeliveryStage(order.createdAt, order.deliveryMethod);
               return (
               <Link
                 key={order.id}
@@ -67,7 +64,12 @@ export default function Orders() {
               >
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <div>
-                    <p className="text-sm font-semibold text-stone-800">{order.id}</p>
+                    <p className="text-sm font-semibold text-stone-800">
+                      {orderNumber(order.id)}
+                      {order.seller && (
+                        <span className="font-normal text-stone-400"> · {order.seller.brandName}</span>
+                      )}
+                    </p>
                     <p className="text-xs text-stone-400">
                       {new Date(order.createdAt).toLocaleDateString(undefined, {
                         year: "numeric",
@@ -76,27 +78,22 @@ export default function Orders() {
                       })}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {order.paymentStatus === "pending" && (
-                      <span className="text-xs font-semibold px-3 py-1 rounded-full bg-stone-100 text-stone-500">
-                        Payment pending
-                      </span>
-                    )}
-                    <span
-                      className={`text-xs font-semibold px-3 py-1 rounded-full ${STAGE_STYLES[stage]}`}
-                    >
-                      {DELIVERY_STAGE_META[stage].label}
-                    </span>
-                  </div>
+                  <span
+                    className={`text-xs font-semibold px-3 py-1 rounded-full ${ORDER_STATUS_META[order.status].className}`}
+                  >
+                    {order.status === "PENDING" ? "Awaiting supplier" : ORDER_STATUS_META[order.status].label}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-2 mb-3">
                   {order.items.slice(0, 4).map((item) => (
                     <div
-                      key={item.lineId}
+                      key={item.id}
                       className="w-12 h-12 rounded-lg overflow-hidden bg-stone-100 shrink-0"
                     >
-                      <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                      {item.image && (
+                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                      )}
                     </div>
                   ))}
                   {order.items.length > 4 && (
@@ -110,7 +107,7 @@ export default function Orders() {
                   <p className="text-xs text-stone-400">
                     {order.items.reduce((sum, i) => sum + i.quantity, 0)} item(s)
                   </p>
-                  <p className="text-sm font-bold text-stone-900">₦{order.total.toFixed(2)}</p>
+                  <p className="text-sm font-bold text-stone-900">₦{order.subtotal.toFixed(2)}</p>
                 </div>
               </Link>
               );

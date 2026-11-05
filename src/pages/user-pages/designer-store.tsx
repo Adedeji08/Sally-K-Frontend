@@ -1,10 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Package, Star } from "lucide-react";
 import Navbar from "../../layouts/navbar";
 import { useProductsData } from "./home";
 import { useSeller } from "../../context/seller-context";
-import { readReviews } from "../../utils/product-reviews";
+import useRequest from "../../hooks/use-req";
 
 export default function DesignerStore() {
   const { name } = useParams<{ name: string }>();
@@ -19,20 +19,37 @@ export default function DesignerStore() {
 
   const isOwnStore = storeProfile?.brandName === designerName;
 
-  const { averageRating, reviewCount } = useMemo(() => {
-    let totalRating = 0;
-    let count = 0;
-    designerProducts.forEach((p) => {
-      readReviews(p.id).forEach((r) => {
-        totalRating += r.rating;
-        count += 1;
-      });
+  // Store rating = every product's GET /reviews summary, weighted by count.
+  const { makeRequest: fetchReviews } = useRequest("/reviews", "GET");
+  const [{ averageRating, reviewCount }, setStoreRating] = useState({
+    averageRating: 0,
+    reviewCount: 0,
+  });
+  const productIdsKey = designerProducts.map((p) => p.id).join(",");
+
+  useEffect(() => {
+    if (!productIdsKey) return;
+    let cancelled = false;
+    Promise.all(
+      productIdsKey.split(",").map((productId) => fetchReviews(undefined, { productId }))
+    ).then((responses) => {
+      if (cancelled) return;
+      let total = 0;
+      let count = 0;
+      for (const [json, status] of responses) {
+        const summary = status >= 200 && status < 300 ? json?.data?.summary : null;
+        if (summary?.count) {
+          total += summary.average * summary.count;
+          count += summary.count;
+        }
+      }
+      setStoreRating({ averageRating: count ? total / count : 0, reviewCount: count });
     });
-    return {
-      averageRating: count > 0 ? totalRating / count : 0,
-      reviewCount: count,
+    return () => {
+      cancelled = true;
     };
-  }, [designerProducts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productIdsKey]);
 
   if (designerProducts.length === 0) {
     return (

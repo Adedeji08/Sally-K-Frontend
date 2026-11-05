@@ -1,15 +1,22 @@
-import { Controller, useForm } from "react-hook-form";
+import { useEffect, useRef } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import Input from "../reusables/input";
 import Textarea from "../reusables/textarea";
 import Select from "../reusables/select";
 import MultiSelect from "../reusables/multi-select";
+import TagInput from "../reusables/tag-input";
 import Button from "../reusables/button";
+import ProductImageInput from "./product-image-input";
+import useApi from "../../hooks/form-req";
+import { useToast } from "../../context/toast-context";
 import type { SellerProductInput } from "../../context/seller-product-context";
+import { toApiCategory } from "../../types/product";
 
 interface ProductFormProps {
   initialValues?: Partial<SellerProductInput>;
-  onSubmit: (input: SellerProductInput) => void;
+  onSubmit: (input: SellerProductInput) => void | Promise<void>;
   submitLabel?: string;
+  submitting?: boolean;
 }
 
 interface ProductFormValues {
@@ -19,80 +26,115 @@ interface ProductFormValues {
   price: string;
   stock: string;
   sizes: string[];
-  colors: string;
+  colors: string[];
   image1: string;
   image2: string;
   image3: string;
   image4: string;
-  status: "published" | "draft";
 }
 
-const CATEGORY_OPTIONS = [
-  { value: "Dresses", label: "Dresses" },
-  { value: "Tops", label: "Tops" },
-  { value: "Men", label: "Men" },
-  { value: "Shoes", label: "Shoes" },
-  { value: "Bags", label: "Bags" },
-  { value: "Accessories", label: "Accessories" },
-];
+// Option value is what the API wants ("dresses"); label is what the seller sees.
+const CATEGORY_OPTIONS = ["Dresses", "Tops", "Men", "Shoes", "Bags", "Accessories"].map(
+  (label) => ({ value: toApiCategory(label), label })
+);
 
-const SIZE_OPTIONS = [
-  { value: "XS", label: "XS" },
-  { value: "S", label: "S" },
-  { value: "M", label: "M" },
-  { value: "L", label: "L" },
-  { value: "XL", label: "XL" },
-  { value: "One Size", label: "One Size" },
-];
+const toOptions = (sizes: string[]) => sizes.map((size) => ({ value: size, label: size }));
 
-const STATUS_OPTIONS = [
-  { value: "published", label: "Submit for approval" },
-  { value: "draft", label: "Save as draft" },
-];
+const CLOTHING_SIZES = toOptions(["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"]);
+const SHOE_SIZES = toOptions(Array.from({ length: 50 }, (_, i) => String(i + 1)));
+const BAG_SIZES = toOptions(["Mini", "Small", "Medium", "Large", "Extra Large"]);
+const ACCESSORY_SIZES = toOptions(["One Size", "Small", "Medium", "Large"]);
+
+// Keyed by the API category value ("dresses"), same as CATEGORY_OPTIONS.
+const SIZE_OPTIONS_BY_CATEGORY: Record<string, { value: string; label: string }[]> = {
+  dresses: CLOTHING_SIZES,
+  tops: CLOTHING_SIZES,
+  men: CLOTHING_SIZES,
+  shoes: SHOE_SIZES,
+  bags: BAG_SIZES,
+  accessories: ACCESSORY_SIZES,
+};
+
+const NO_SIZES: { value: string; label: string }[] = [];
+
+const COLOR_SUGGESTIONS = ["black", "white", "red", "navy", "beige", "pink"];
 
 const IMAGE_FIELDS = ["image1", "image2", "image3", "image4"] as const;
+
+const PRODUCT_IMAGE_ENDPOINT = "/uploads/product-image";
 
 export default function ProductForm({
   initialValues,
   onSubmit,
   submitLabel = "Publish Product",
+  submitting = false,
 }: ProductFormProps) {
-  const { control, handleSubmit } = useForm<ProductFormValues>({
+  const toast = useToast();
+  const { makeRequest: uploadImageRequest } = useApi(PRODUCT_IMAGE_ENDPOINT, "POST", {
+    Authorization: `Bearer ${localStorage.getItem("authToken") ?? ""}`,
+  });
+
+  // Only called when the seller picks a file from their computer. A pasted URL
+  // skips this entirely and is sent to the payload as-is.
+  const uploadImage = async (file: File): Promise<string | null> => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const [json, status] = await uploadImageRequest(formData);
+
+    if (status < 200 || status >= 300 || !json?.data?.url) {
+      toast.error(json?.message || "Couldn't upload that image. Try again.");
+      return null;
+    }
+
+    return json.data.url as string;
+  };
+
+  const { control, handleSubmit, getValues, setValue } = useForm<ProductFormValues>({
     defaultValues: {
       name: initialValues?.name ?? "",
       description: initialValues?.description ?? "",
-      category: initialValues?.category ?? "",
+      // The API returns categories upper-cased; match them back to an option value.
+      category: initialValues?.category ? toApiCategory(initialValues.category) : "",
       price: initialValues?.price !== undefined ? String(initialValues.price) : "",
       stock: initialValues?.stock !== undefined ? String(initialValues.stock) : "",
       sizes: initialValues?.sizes ?? [],
-      colors: initialValues?.colors?.join(", ") ?? "",
+      colors: initialValues?.colors ?? [],
       image1: initialValues?.images?.[0] ?? "",
       image2: initialValues?.images?.[1] ?? "",
       image3: initialValues?.images?.[2] ?? "",
       image4: initialValues?.images?.[3] ?? "",
-      status: initialValues?.status ?? "published",
     },
   });
+
+  const category = useWatch({ control, name: "category" });
+  const sizeOptions = SIZE_OPTIONS_BY_CATEGORY[category] ?? NO_SIZES;
+
+  // Switching category (e.g. Dresses -> Shoes) drops sizes that don't exist in
+  // the new list. Skipped on first render so an edited product keeps its sizes.
+  const previousCategory = useRef(category);
+  useEffect(() => {
+    if (previousCategory.current === category) return;
+    previousCategory.current = category;
+    const allowed = new Set(sizeOptions.map((o) => o.value));
+    const kept = getValues("sizes").filter((size) => allowed.has(size));
+    setValue("sizes", kept, { shouldValidate: kept.length > 0 });
+  }, [category, sizeOptions, getValues, setValue]);
 
   const submit = (values: ProductFormValues) => {
     const images = [values.image1, values.image2, values.image3, values.image4].filter(
       (url) => url.trim().length > 0
     );
-    const colors = values.colors
-      .split(",")
-      .map((c) => c.trim())
-      .filter(Boolean);
 
     onSubmit({
-      name: values.name,
-      description: values.description,
-      category: values.category,
+      name: values.name.trim(),
+      description: values.description.trim(),
+      category: toApiCategory(values.category),
       price: Number(values.price) || 0,
       stock: Number(values.stock) || 0,
       sizes: values.sizes,
-      colors,
+      colors: values.colors,
       images,
-      status: values.status,
     });
   };
 
@@ -166,40 +208,24 @@ export default function ProductForm({
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Controller
-          name="stock"
-          control={control}
-          rules={{
-            required: "Stock quantity is required",
-            pattern: { value: /^\d+$/, message: "Enter a whole number" },
-          }}
-          render={({ field, fieldState }) => (
-            <Input
-              label="Stock quantity"
-              placeholder="0"
-              value={field.value}
-              onChange={field.onChange}
-              error={fieldState.error?.message}
-              autoComplete="off"
-            />
-          )}
-        />
-
-        <Controller
-          name="colors"
-          control={control}
-          render={({ field }) => (
-            <Input
-              label="Colors"
-              placeholder="e.g. Black, Red, Navy"
-              value={field.value}
-              onChange={field.onChange}
-              autoComplete="off"
-            />
-          )}
-        />
-      </div>
+      <Controller
+        name="stock"
+        control={control}
+        rules={{
+          required: "Stock quantity is required",
+          pattern: { value: /^\d+$/, message: "Enter a whole number" },
+        }}
+        render={({ field, fieldState }) => (
+          <Input
+            label="Stock quantity"
+            placeholder="0"
+            value={field.value}
+            onChange={field.onChange}
+            error={fieldState.error?.message}
+            autoComplete="off"
+          />
+        )}
+      />
 
       <Controller
         name="sizes"
@@ -208,8 +234,8 @@ export default function ProductForm({
         render={({ field, fieldState }) => (
           <MultiSelect
             label="Available sizes"
-            placeholder="Select sizes"
-            options={SIZE_OPTIONS}
+            placeholder={category ? "Select sizes" : "Select a category first"}
+            options={sizeOptions}
             value={field.value ?? []}
             onChange={field.onChange}
             error={fieldState.error?.message}
@@ -217,8 +243,28 @@ export default function ProductForm({
         )}
       />
 
+      <Controller
+        name="colors"
+        control={control}
+        rules={{ validate: (value) => (value && value.length > 0) || "Add at least one color" }}
+        render={({ field, fieldState }) => (
+          <TagInput
+            label="Available colors"
+            placeholder="Type a color and press Enter, e.g. red"
+            value={field.value ?? []}
+            onChange={field.onChange}
+            error={fieldState.error?.message}
+            suggestions={COLOR_SUGGESTIONS}
+            showSwatch
+          />
+        )}
+      />
+
       <div className="flex flex-col gap-3">
-        <p className="text-[14px] font-bold text-[#121212]">Product images (URL)</p>
+        <p className="text-[14px] font-bold text-[#121212]">Product images</p>
+        <p className="text-[12px] text-[#65799A] -mt-1">
+          Paste an image link or upload one from your computer.
+        </p>
         {IMAGE_FIELDS.map((name, index) => (
           <Controller
             key={name}
@@ -226,56 +272,26 @@ export default function ProductForm({
             control={control}
             rules={index === 0 ? { required: "At least one image is required" } : undefined}
             render={({ field, fieldState }) => (
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-[#F2E8ED] overflow-hidden shrink-0 flex items-center justify-center">
-                  {field.value ? (
-                    <img
-                      src={field.value}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.visibility = "hidden";
-                      }}
-                    />
-                  ) : (
-                    <span className="text-[10px] text-[#95959D]">{index + 1}</span>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <Input
-                    placeholder={`Image ${index + 1} URL${index === 0 ? "" : " (optional)"}`}
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={fieldState.error?.message}
-                    autoComplete="off"
-                  />
-                </div>
-              </div>
+              <ProductImageInput
+                index={index}
+                value={field.value}
+                onChange={field.onChange}
+                onUpload={uploadImage}
+                error={fieldState.error?.message}
+              />
             )}
           />
         ))}
       </div>
 
-      <div>
-        <Controller
-          name="status"
-          control={control}
-          render={({ field }) => (
-            <Select
-              label="Visibility"
-              options={STATUS_OPTIONS}
-              value={field.value}
-              onChange={field.onChange}
-            />
-          )}
-        />
-        <p className="text-[12px] text-[#65799A] mt-1.5">
-          Submitted products are reviewed before they appear in the shop.
-        </p>
-      </div>
-
-      <Button size="lg" variant="primary" type="submit" className="font-normal mt-2">
-        {submitLabel}
+      <Button
+        size="lg"
+        variant="primary"
+        type="submit"
+        disabled={submitting}
+        className="font-normal mt-2"
+      >
+        {submitting ? "Saving..." : submitLabel}
       </Button>
     </form>
   );

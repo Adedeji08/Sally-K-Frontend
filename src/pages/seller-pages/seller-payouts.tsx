@@ -8,6 +8,7 @@ import Button from "../../components/reusables/button";
 import { useSeller } from "../../context/seller-context";
 import type { BankAccount } from "../../context/seller-context";
 import { useOrders } from "../../context/order-context";
+import { orderNumber } from "../../types/order";
 import { getTransactionFee, getNetPayout } from "../../utils/transaction-fee";
 
 const BANK_OPTIONS = [
@@ -30,7 +31,9 @@ function maskAccountNumber(accountNumber: string) {
 
 export default function SellerPayouts() {
   const { bankAccount, setBankAccount } = useSeller();
-  const { orders } = useOrders();
+  const { receivedOrders } = useOrders();
+  // Cancelled orders aren't paid out.
+  const orders = receivedOrders.filter((o) => o.status !== "CANCELLED");
   const [editing, setEditing] = useState(!bankAccount);
   const [saved, setSaved] = useState(false);
 
@@ -185,7 +188,7 @@ export default function SellerPayouts() {
                   className="flex items-center justify-between gap-3 py-3 hover:bg-[#FAFAFA] -mx-2 px-2 rounded-lg transition-colors"
                 >
                   <div className="min-w-0">
-                    <p className="text-[13px] font-semibold text-[#121212]">{order.id}</p>
+                    <p className="text-[13px] font-semibold text-[#121212]">{orderNumber(order.id)}</p>
                     <p className="text-[11px] text-[#95959D]">
                       {new Date(order.createdAt).toLocaleDateString()} · Fee ₦{fee.toFixed(2)}
                     </p>

@@ -8,6 +8,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useOrders } from "../../context/order-context";
+import { ORDER_STATUS_META, orderNumber } from "../../types/order";
 import { useSeller } from "../../context/seller-context";
 import { useSellerProducts } from "../../context/seller-product-context";
 import SalesChart from "../../components/seller/sales-chart";
@@ -23,15 +24,20 @@ const PERIOD_OPTIONS: { value: SalesPeriod; label: string }[] = [
 ];
 
 export default function DashboardOverview() {
-  const { orders } = useOrders();
+  const { receivedOrders } = useOrders();
+  // Cancelled orders don't count towards sales or payouts.
+  const orders = useMemo(
+    () => receivedOrders.filter((o) => o.status !== "CANCELLED"),
+    [receivedOrders]
+  );
   const { canSell, isVerified, isSubscribed } = useSeller();
   const { products } = useSellerProducts();
   const [period, setPeriod] = useState<SalesPeriod>("daily");
 
   const series = useMemo(() => buildSalesSeries(orders, period), [orders, period]);
 
-  const totalSales = orders.reduce((sum, o) => sum + o.total, 0);
-  const pendingOrders = orders.filter((o) => !o.fulfilled).length;
+  const totalSales = orders.reduce((sum, o) => sum + o.subtotal, 0);
+  const pendingOrders = orders.filter((o) => o.status === "PENDING").length;
 
   const grossMerchandiseValue = orders.reduce((sum, o) => sum + o.subtotal, 0);
   const platformFees = orders.reduce((sum, o) => sum + getTransactionFee(o.subtotal), 0);
@@ -180,34 +186,35 @@ export default function DashboardOverview() {
           </Link>
         </div>
 
-        {orders.length === 0 ? (
+        {receivedOrders.length === 0 ? (
           <p className="text-sm text-[#95959D] py-6 text-center">No orders yet.</p>
         ) : (
           <div className="flex flex-col divide-y divide-[#F2E8ED]">
-            {orders.slice(0, 5).map((order) => (
+            {receivedOrders.slice(0, 5).map((order) => (
               <Link
                 key={order.id}
                 to={`/seller/orders/${order.id}`}
                 className="flex items-center justify-between py-3 hover:bg-[#FAFAFA] -mx-2 px-2 rounded-lg transition-colors"
               >
                 <div>
-                  <p className="text-[13px] font-semibold text-[#121212]">{order.id}</p>
+                  <p className="text-[13px] font-semibold text-[#121212]">
+                    {orderNumber(order.id)}
+                    {order.buyer && (
+                      <span className="font-normal text-[#95959D]"> · {order.buyer.fullName}</span>
+                    )}
+                  </p>
                   <p className="text-[11px] text-[#95959D]">
                     {new Date(order.createdAt).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                      order.fulfilled
-                        ? "bg-emerald-50 text-emerald-600"
-                        : "bg-amber-50 text-amber-600"
-                    }`}
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ORDER_STATUS_META[order.status].className}`}
                   >
-                    {order.fulfilled ? "Fulfilled" : "Pending"}
+                    {ORDER_STATUS_META[order.status].label}
                   </span>
                   <span className="text-[13px] font-bold text-[#121212]">
-                    ₦{order.total.toFixed(2)}
+                    ₦{order.subtotal.toFixed(2)}
                   </span>
                 </div>
               </Link>

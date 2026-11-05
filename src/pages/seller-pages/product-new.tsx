@@ -1,17 +1,30 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Lock } from "lucide-react";
 import { useSeller } from "../../context/seller-context";
 import { useSellerProducts } from "../../context/seller-product-context";
+import { useToast } from "../../context/toast-context";
 import ProductForm from "../../components/seller/product-form";
 import type { SellerProductInput } from "../../context/seller-product-context";
 
 export default function ProductNew() {
   const navigate = useNavigate();
+  const toast = useToast();
   const { canSell, isVerified, isSubscribed } = useSeller();
   const { addProduct } = useSellerProducts();
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (input: SellerProductInput) => {
-    addProduct(input);
+  const handleSubmit = async (input: SellerProductInput) => {
+    setSubmitting(true);
+    const created = await addProduct(input);
+    setSubmitting(false);
+
+    if (!created) {
+      toast.error("Couldn't publish that product. Please try again.");
+      return;
+    }
+
+    toast.success("Product published.");
     navigate("/seller/products");
   };
 
@@ -81,7 +94,11 @@ export default function ProductNew() {
       </p>
 
       <div className="bg-white rounded-2xl shadow-sm p-6">
-        <ProductForm onSubmit={handleSubmit} submitLabel="Publish Product" />
+        <ProductForm
+          onSubmit={handleSubmit}
+          submitLabel="Publish Product"
+          submitting={submitting}
+        />
       </div>
     </div>
   );

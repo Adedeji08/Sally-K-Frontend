@@ -1,69 +1,96 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import type { CartItem } from "./cart-context";
-import type { DeliveryMethod } from "./checkout-context";
-
-export interface Order {
-  id: string;
-  items: CartItem[];
-  subtotal: number;
-  shippingFee: number;
-  total: number;
-  address: string;
-  deliveryMethod: DeliveryMethod;
-  paymentMethod: "card" | "transfer";
-  paymentStatus: "pending" | "paid";
-  fulfilled: boolean;
-  createdAt: number;
-}
+import { useAuth } from "./auth-context";
+import useRequest from "../hooks/use-req";
+import type { Order, OrderStatus } from "../types/order";
 
 interface OrderContextValue {
-  orders: Order[];
-  addOrder: (order: Omit<Order, "id" | "createdAt" | "fulfilled">) => Order;
-  getOrder: (id: string) => Order | undefined;
-  markFulfilled: (id: string) => void;
+  // GET /orders/mine — what the logged-in user has bought.
+  myOrders: Order[];
+  myOrdersLoaded: boolean;
+  refetchMyOrders: () => Promise<void>;
+  // GET /orders/received — sellers only: orders placed with their store.
+  receivedOrders: Order[];
+  receivedOrdersLoaded: boolean;
+  refetchReceivedOrders: () => Promise<void>;
+  // PATCH /orders/received/:id — resolves with the API message on failure.
+  updateOrderStatus: (
+    id: string,
+    status: Exclude<OrderStatus, "PENDING">
+  ) => Promise<{ ok: true } | { ok: false; message: string }>;
 }
 
 const OrderContext = createContext<OrderContextValue | null>(null);
-const ORDERS_KEY = "orders";
 
-function readOrdersFromStorage(): Order[] {
-  try {
-    const raw = localStorage.getItem(ORDERS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
+const ok = (status: number) => status >= 200 && status < 300;
 
 export function OrderProvider({ children }: { children: ReactNode }) {
-  const [orders, setOrders] = useState<Order[]>(() => readOrdersFromStorage());
+  const { isAuthenticated, user } = useAuth();
+  const isSeller = user?.role === "seller";
+
+  const { makeRequest: fetchMine } = useRequest("/orders/mine", "GET");
+  const { makeRequest: fetchReceived } = useRequest("/orders/received", "GET");
+  const { makeRequest: patchReceived } = useRequest("/orders/received", "PATCH");
+
+  const [myOrders, setMyOrders] = useState<Order[]>([]);
+  const [myOrdersLoaded, setMyOrdersLoaded] = useState(false);
+  const [receivedOrders, setReceivedOrders] = useState<Order[]>([]);
+  const [receivedOrdersLoaded, setReceivedOrdersLoaded] = useState(false);
+
+  const refetchMyOrders = async () => {
+    const [json, status] = await fetchMine();
+    setMyOrdersLoaded(true);
+    if (ok(status) && Array.isArray(json?.data)) setMyOrders(json.data as Order[]);
+  };
+
+  const refetchReceivedOrders = async () => {
+    const [json, status] = await fetchReceived();
+    setReceivedOrdersLoaded(true);
+    if (ok(status) && Array.isArray(json?.data)) setReceivedOrders(json.data as Order[]);
+  };
+
+  // Orders used to live in localStorage — clear that leftover once.
+  useEffect(() => {
+    localStorage.removeItem("orders");
+    if (isAuthenticated) {
+      refetchMyOrders();
+    } else {
+      setMyOrders([]);
+      setMyOrdersLoaded(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
-  }, [orders]);
+    if (isAuthenticated && isSeller) {
+      refetchReceivedOrders();
+    } else {
+      setReceivedOrders([]);
+      setReceivedOrdersLoaded(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, isSeller]);
 
-  const addOrder = (order: Omit<Order, "id" | "createdAt" | "fulfilled">) => {
-    const newOrder: Order = {
-      ...order,
-      id: `ORD-${Date.now().toString().slice(-8)}`,
-      fulfilled: false,
-      createdAt: Date.now(),
-    };
-    setOrders((prev) => [newOrder, ...prev]);
-    return newOrder;
+  const updateOrderStatus: OrderContextValue["updateOrderStatus"] = async (id, status) => {
+    const [json, code] = await patchReceived({ status }, undefined, id);
+    if (!ok(code)) {
+      return { ok: false, message: json?.message || "Couldn't update this order. Try again." };
+    }
+    setReceivedOrders((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, status, updatedAt: json?.data?.updatedAt ?? o.updatedAt } : o))
+    );
+    return { ok: true };
   };
 
-  const getOrder = (id: string) => orders.find((order) => order.id === id);
-
-  const markFulfilled = (id: string) => {
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, fulfilled: true } : o)));
+  const value: OrderContextValue = {
+    myOrders,
+    myOrdersLoaded,
+    refetchMyOrders,
+    receivedOrders,
+    receivedOrdersLoaded,
+    refetchReceivedOrders,
+    updateOrderStatus,
   };
-
-  const value = useMemo<OrderContextValue>(
-    () => ({ orders, addOrder, getOrder, markFulfilled }),
-    [orders]
-  );
 
   return <OrderContext.Provider value={value}>{children}</OrderContext.Provider>;
 }

@@ -1,25 +1,31 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Package, Pencil, Plus, Trash2 } from "lucide-react";
+import { ClipLoader } from "react-spinners";
 import { useSellerProducts } from "../../context/seller-product-context";
-import type { SellerProduct } from "../../context/seller-product-context";
-import { getApprovalStatus } from "../../utils/product-approval";
-
-const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  draft: { label: "Draft", className: "bg-stone-100 text-stone-500" },
-  pending: { label: "Awaiting Approval", className: "bg-amber-50 text-amber-600" },
-  approved: { label: "Live", className: "bg-emerald-50 text-emerald-600" },
-};
-
-function getStatusKey(product: SellerProduct) {
-  if (product.status === "draft") return "draft";
-  return product.submittedAt ? getApprovalStatus(product.submittedAt) : "pending";
-}
+import { useToast } from "../../context/toast-context";
+import { categoryLabel } from "../../types/product";
 
 export default function ProductsList() {
   const navigate = useNavigate();
-  const { products, deleteProduct } = useSellerProducts();
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const toast = useToast();
+  const { products, loaded, deleteProduct } = useSellerProducts();
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirmDeleteId) return;
+    setDeleting(true);
+    const done = await deleteProduct(confirmDeleteId);
+    setDeleting(false);
+    setConfirmDeleteId(null);
+
+    if (!done) {
+      toast.error("Couldn't delete that product. Please try again.");
+      return;
+    }
+    toast.success("Product deleted.");
+  };
 
   return (
     <div>
@@ -37,14 +43,18 @@ export default function ProductsList() {
         </Link>
       </div>
 
-      {products.length === 0 ? (
+      {!loaded ? (
+        <div className="bg-white rounded-2xl shadow-sm py-16 flex justify-center">
+          <ClipLoader size={28} color="#ED1280" />
+        </div>
+      ) : products.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm py-16 text-center">
           <span className="w-14 h-14 rounded-full bg-[#F2E8ED] flex items-center justify-center mx-auto mb-4">
             <Package className="w-6 h-6 text-[#ED1280]" strokeWidth={2} />
           </span>
           <p className="text-[15px] font-semibold text-[#121212] mb-1">No products yet</p>
           <p className="text-sm text-[#65799A] mb-6">
-            Add your first product to start selling on Sally-K.
+            Add your first product to start selling.
           </p>
           <Link
             to="/seller/products/new"
@@ -55,69 +65,87 @@ export default function ProductsList() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <div className="flex flex-col divide-y divide-[#F2E8ED]">
-            {products.map((product) => {
-              const badge = STATUS_BADGE[getStatusKey(product)];
-              return (
-                <div
-                  key={product.id}
-                  onClick={() => navigate(`/seller/products/${product.id}`)}
-                  role="button"
-                  tabIndex={0}
-                  className="flex items-center gap-4 p-4 cursor-pointer hover:bg-[#FAFAFA] transition-colors"
-                >
-                  <div className="w-14 h-14 rounded-xl overflow-hidden bg-[#F2E8ED] shrink-0">
-                    {product.images[0] && (
-                      <img
-                        src={product.images[0]}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-semibold text-[#121212] truncate">
-                      {product.name}
-                    </p>
-                    <p className="text-[12px] text-[#65799A]">
-                      {product.category} · Stock: {product.stock}
-                    </p>
-                  </div>
-
-                  <span
-                    className={`hidden sm:inline-block text-[10px] font-semibold px-2.5 py-1 rounded-full ${badge.className}`}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left">
+              <thead>
+                <tr className="border-b border-[#F2E8ED] text-[12px] uppercase tracking-wide text-[#65799A]">
+                  <th className="font-semibold px-5 py-3.5">Product</th>
+                  <th className="font-semibold px-5 py-3.5">Category</th>
+                  <th className="font-semibold px-5 py-3.5 text-right">Price</th>
+                  <th className="font-semibold px-5 py-3.5 text-right">Stock</th>
+                  <th className="font-semibold px-5 py-3.5">Status</th>
+                  <th className="font-semibold px-5 py-3.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F2E8ED]">
+                {products.map((product) => (
+                  <tr
+                    key={product.id}
+                    onClick={() => navigate(`/seller/products/${product.id}`)}
+                    className="cursor-pointer hover:bg-[#FAFAFA] transition-colors"
                   >
-                    {badge.label}
-                  </span>
-
-                  <p className="text-[14px] font-bold text-[#121212] w-20 text-right shrink-0">
-                    ₦{product.price.toFixed(2)}
-                  </p>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Link
-                      to={`/seller/products/${product.id}/edit`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-8 h-8 rounded-full bg-[#F2E8ED] flex items-center justify-center text-[#4a4a4a] hover:text-[#ED1280] transition-colors"
-                      aria-label="Edit product"
-                    >
-                      <Pencil className="w-3.5 h-3.5" strokeWidth={2} />
-                    </Link>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmDeleteId(product.id);
-                      }}
-                      className="w-8 h-8 rounded-full bg-[#F2E8ED] flex items-center justify-center text-[#4a4a4a] hover:text-rose-500 transition-colors"
-                      aria-label="Delete product"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-lg overflow-hidden bg-[#F2E8ED] shrink-0">
+                          {product.images[0] && (
+                            <img
+                              src={product.images[0]}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+                        </div>
+                        <span className="text-[14px] font-semibold text-[#121212] line-clamp-2 max-w-[240px]">
+                          {product.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-[13px] text-[#4a4a4a]">
+                      {categoryLabel(product.category)}
+                    </td>
+                    <td className="px-5 py-4 text-[14px] font-semibold text-[#121212] text-right whitespace-nowrap">
+                      ₦{product.price.toFixed(2)}
+                    </td>
+                    <td className="px-5 py-4 text-[13px] text-[#4a4a4a] text-right">
+                      {product.stock}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={`inline-block text-[10px] font-semibold px-2.5 py-1 rounded-full ${
+                          product.isActive
+                            ? "bg-emerald-50 text-emerald-600"
+                            : "bg-stone-100 text-stone-500"
+                        }`}
+                      >
+                        {product.isActive ? "Live" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          to={`/seller/products/${product.id}/edit`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-8 h-8 rounded-full bg-[#F2E8ED] flex items-center justify-center text-[#4a4a4a] hover:text-[#ED1280] transition-colors"
+                          aria-label="Edit product"
+                        >
+                          <Pencil className="w-3.5 h-3.5" strokeWidth={2} />
+                        </Link>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDeleteId(product.id);
+                          }}
+                          className="w-8 h-8 rounded-full bg-[#F2E8ED] flex items-center justify-center text-[#4a4a4a] hover:text-rose-500 transition-colors"
+                          aria-label="Delete product"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -143,13 +171,11 @@ export default function ProductsList() {
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  deleteProduct(confirmDeleteId);
-                  setConfirmDeleteId(null);
-                }}
-                className="flex-1 px-4 py-2.5 rounded-full text-sm font-semibold text-white bg-rose-500 hover:bg-rose-600 transition-colors"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 px-4 py-2.5 rounded-full text-sm font-semibold text-white bg-rose-500 hover:bg-rose-600 transition-colors disabled:opacity-60"
               >
-                Delete
+                {deleting ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>

@@ -1,16 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Heart, Minus, Plus, ShoppingBag, Star } from "lucide-react";
+import { ClipLoader } from "react-spinners";
 import Navbar from "../../layouts/navbar";
-import { useProductsData, tagColors } from "./home";
 import { useAuth } from "../../context/auth-context";
 import { useCart } from "../../context/cart-context";
 import { useWishlist } from "../../context/wishlist-context";
-import type { ProductReview } from "../../utils/product-reviews";
-import { readReviews, writeReviews } from "../../utils/product-reviews";
+import { useShopProducts } from "../../context/shop-product-context";
+import useProduct from "../../hooks/use-product";
+import { categoryLabel } from "../../types/product";
+import { useCurrentUser } from "../../context/current-user-context";
+import { useToast } from "../../context/toast-context";
+import useProductReviews from "../../hooks/use-product-reviews";
 
-function formatTimeAgo(timestamp: number): string {
-  const days = Math.floor((Date.now() - timestamp) / 86400000);
+function formatTimeAgo(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
   if (days <= 0) return "Today";
   if (days === 1) return "1 day ago";
   if (days < 30) return `${days} days ago`;
@@ -19,58 +23,61 @@ function formatTimeAgo(timestamp: number): string {
   return `${months} months ago`;
 }
 
-const CLOTHING_CATEGORIES = new Set(["Dresses", "Tops", "Men"]);
-const CLOTHING_SIZES = ["XS", "S", "M", "L", "XL"];
-const SHOE_SIZES = ["38", "39", "40", "41", "42", "43"];
-
-const COLOR_SWATCHES = [
-  { name: "Black", value: "#1F1F1F" },
-  { name: "Wine", value: "#8C2F45" },
-  { name: "Navy", value: "#1F2A44" },
-];
-
-function getSizeOptions(category: string): string[] {
-  if (CLOTHING_CATEGORIES.has(category)) return CLOTHING_SIZES;
-  if (category === "Shoes") return SHOE_SIZES;
-  return ["One Size"];
+// Seller-entered colour names ("navy") render as their CSS colour; anything the
+// browser doesn't know ("wine") falls back to a neutral swatch.
+function swatchColor(color: string): string {
+  return CSS.supports("color", color) ? color : "#E7E5E4";
 }
 
+// Keyed by id so size/colour/image/review state starts fresh per product.
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
+  return <ProductDetailView key={id} id={id} />;
+}
+
+function ProductDetailView({ id }: { id: string | undefined }) {
   const navigate = useNavigate();
-  const { isAuthenticated, user, openLoginModal } = useAuth();
+  const { isAuthenticated, openLoginModal } = useAuth();
+  const { currentUser } = useCurrentUser();
   const { addItem } = useCart();
+  const toast = useToast();
   const { isWishlisted, toggleWishlist } = useWishlist();
-  const productsData = useProductsData();
+  const { products: catalogue } = useShopProducts();
 
-  const product = useMemo(
-    () => productsData.find((p) => p.id === Number(id)),
-    [productsData, id]
+  // GET /products/:id — 404s for inactive or missing products. The catalogue
+  // row (if the shopper came from the grid) renders while it loads.
+  const { product, loading } = useProduct(
+    id,
+    "public",
+    catalogue.find((p) => p.id === id)
   );
 
-  const sizeOptions = useMemo(
-    () => (product ? getSizeOptions(product.category) : []),
-    [product]
-  );
-
+  const [activeImage, setActiveImage] = useState(0);
   const [selectedSize, setSelectedSize] = useState("");
-  const [selectedColor, setSelectedColor] = useState(COLOR_SWATCHES[0].name);
+  const [selectedColor, setSelectedColor] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
+  const [adding, setAdding] = useState(false);
 
-  const [reviews, setReviews] = useState<ProductReview[]>(() =>
-    product ? readReviews(product.id) : []
-  );
+  const { reviews, summary, createReview, updateReview, deleteReview } = useProductReviews(id);
+  // The review being edited, or null when the form is for a new review.
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+  const [savingReview, setSavingReview] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
   const [reviewError, setReviewError] = useState("");
 
-  useEffect(() => {
-    if (product) {
-      writeReviews(product.id, reviews);
-    }
-  }, [reviews, product]);
+  if (!product && loading) {
+    return (
+      <>
+        <Navbar />
+        <div className="flex justify-center py-24">
+          <ClipLoader size={28} color="#f43f5e" />
+        </div>
+      </>
+    );
+  }
 
   if (!product) {
     return (
@@ -89,34 +96,53 @@ export default function ProductDetail() {
     );
   }
 
-  const activeSize = selectedSize || sizeOptions[0];
-  const reviewCount = reviews.length;
-  const rating = reviewCount
-    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
-    : 0;
+  const designer = product.seller?.brandName ?? "Independent Designer";
+  const colors = product.colors ?? [];
+  const activeSize = selectedSize || product.sizes[0];
+  const activeColor = selectedColor || colors[0];
+  const outOfStock = product.stock <= 0;
+  const reviewCount = summary.count;
+  const rating = summary.average;
+  // One review per shopper per product (the API 409s a second one), so if they
+  // already have one the form becomes "edit".
+  const myReview = currentUser ? reviews.find((r) => r.userId === currentUser.id) : undefined;
+  const showReviewForm = !myReview || editingReviewId === myReview.id;
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!isAuthenticated) {
       openLoginModal("Sign in to add items to your bag and check out.");
       return;
     }
-    addItem(
-      {
-        productId: product.id,
-        name: product.name,
-        designer: product.designer,
-        price: product.price,
-        image: product.image,
-        size: activeSize,
-        color: selectedColor,
-      },
+    setAdding(true);
+    const result = await addItem(
+      { productId: product.id, size: activeSize, color: activeColor },
       quantity
     );
+    setAdding(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
     setAdded(true);
     setTimeout(() => setAdded(false), 1800);
   };
 
-  const handleSubmitReview = () => {
+  const resetReviewForm = () => {
+    setEditingReviewId(null);
+    setReviewRating(0);
+    setReviewComment("");
+    setReviewError("");
+  };
+
+  const startEditingReview = () => {
+    if (!myReview) return;
+    setEditingReviewId(myReview.id);
+    setReviewRating(myReview.rating);
+    setReviewComment(myReview.comment);
+    setReviewError("");
+  };
+
+  const handleSubmitReview = async () => {
     if (!isAuthenticated) {
       openLoginModal("Sign in to share your thoughts about this product.");
       return;
@@ -125,24 +151,36 @@ export default function ProductDetail() {
       setReviewError("Please select a star rating.");
       return;
     }
-    if (!reviewComment.trim()) {
-      setReviewError("Please write a short comment.");
+    const comment = reviewComment.trim();
+    if (comment.length < 5) {
+      setReviewError("Please write at least 5 characters.");
       return;
     }
 
-    setReviews((prev) => [
-      {
-        id: `${Date.now()}`,
-        name: user?.name ?? "Shopper",
-        rating: reviewRating,
-        comment: reviewComment.trim(),
-        createdAt: Date.now(),
-      },
-      ...prev,
-    ]);
-    setReviewRating(0);
-    setReviewComment("");
-    setReviewError("");
+    setSavingReview(true);
+    const input = { rating: reviewRating, comment };
+    const result = editingReviewId
+      ? await updateReview(editingReviewId, input)
+      : await createReview(input);
+    setSavingReview(false);
+
+    if (!result.ok) {
+      setReviewError(result.message);
+      return;
+    }
+    toast.success(editingReviewId ? "Review updated." : "Thanks for your review!");
+    resetReviewForm();
+  };
+
+  const handleDeleteReview = async () => {
+    if (!myReview) return;
+    const result = await deleteReview(myReview.id);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    toast.success("Review deleted.");
+    resetReviewForm();
   };
 
   return (
@@ -158,9 +196,16 @@ export default function ProductDetail() {
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-          {/* Image */}
+          {/* Images */}
+          <div>
           <div className="relative rounded-2xl overflow-hidden bg-stone-100 aspect-[4/5]">
-            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+            {product.images[activeImage] && (
+              <img
+                src={product.images[activeImage]}
+                alt={product.name}
+                className="w-full h-full object-cover"
+              />
+            )}
             <button
               onClick={() => {
                 if (!isAuthenticated) {
@@ -181,25 +226,39 @@ export default function ProductDetail() {
             </button>
           </div>
 
+          {product.images.length > 1 && (
+            <div className="flex gap-2 mt-3">
+              {product.images.map((src, index) => (
+                <button
+                  key={src}
+                  onClick={() => setActiveImage(index)}
+                  className={`w-16 h-20 rounded-lg overflow-hidden border-2 transition-colors ${
+                    activeImage === index ? "border-rose-500" : "border-transparent"
+                  }`}
+                  aria-label={`View image ${index + 1}`}
+                >
+                  <img src={src} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+          </div>
+
           {/* Details */}
           <div>
-            {product.tag && (
-              <span
-                className={`inline-block text-xs font-bold text-white px-3 py-1 rounded-full mb-3 ${tagColors[product.tag]}`}
-              >
-                {product.tag}
-              </span>
-            )}
+            <p className="text-xs font-medium uppercase tracking-wide text-stone-400 mb-2">
+              {categoryLabel(product.category)}
+            </p>
             <h1 className="text-2xl md:text-3xl font-semibold text-stone-900 mb-1">
               {product.name}
             </h1>
             <p className="text-sm text-stone-400 mb-3">
               by{" "}
               <Link
-                to={`/designer/${encodeURIComponent(product.designer)}`}
+                to={`/designer/${encodeURIComponent(designer)}`}
                 className="text-rose-500 font-medium hover:text-rose-600"
               >
-                {product.designer}
+                {designer}
               </Link>
             </p>
 
@@ -223,28 +282,38 @@ export default function ProductDetail() {
             <p className="text-2xl font-bold text-stone-900 mb-6">₦{product.price.toFixed(2)}</p>
 
             {/* Color */}
-            <div className="mb-5">
-              <p className="text-sm font-medium text-stone-700 mb-2">Color: {selectedColor}</p>
-              <div className="flex gap-2">
-                {COLOR_SWATCHES.map((c) => (
-                  <button
-                    key={c.name}
-                    onClick={() => setSelectedColor(c.name)}
-                    className={`w-8 h-8 rounded-full border-2 transition-all ${
-                      selectedColor === c.name ? "border-rose-500 scale-110" : "border-transparent"
-                    }`}
-                    style={{ backgroundColor: c.value }}
-                    aria-label={c.name}
-                  />
-                ))}
+            {colors.length > 0 && (
+              <div className="mb-5">
+                <p className="text-sm font-medium text-stone-700 mb-2">
+                  Color: <span className="capitalize">{activeColor}</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {colors.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => setSelectedColor(color)}
+                      className={`w-8 h-8 rounded-full border-2 p-0.5 transition-all ${
+                        activeColor === color ? "border-rose-500 scale-110" : "border-stone-200"
+                      }`}
+                      aria-label={color}
+                      title={color}
+                    >
+                      <span
+                        className="block w-full h-full rounded-full"
+                        style={{ backgroundColor: swatchColor(color) }}
+                      />
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Size */}
+            {product.sizes.length > 0 && (
             <div className="mb-6">
               <p className="text-sm font-medium text-stone-700 mb-2">Size</p>
               <div className="flex flex-wrap gap-2">
-                {sizeOptions.map((size) => (
+                {product.sizes.map((size) => (
                   <button
                     key={size}
                     onClick={() => setSelectedSize(size)}
@@ -259,6 +328,7 @@ export default function ProductDetail() {
                 ))}
               </div>
             </div>
+            )}
 
             {/* Quantity */}
             <div className="mb-6">
@@ -268,7 +338,10 @@ export default function ProductDetail() {
                   <Minus className="w-4 h-4 text-stone-500" strokeWidth={2} />
                 </button>
                 <span className="text-sm font-semibold text-stone-800 w-4 text-center">{quantity}</span>
-                <button onClick={() => setQuantity((q) => q + 1)} aria-label="Increase quantity">
+                <button
+                  onClick={() => setQuantity((q) => Math.min(Math.max(product.stock, 1), q + 1))}
+                  aria-label="Increase quantity"
+                >
                   <Plus className="w-4 h-4 text-stone-500" strokeWidth={2} />
                 </button>
               </div>
@@ -276,10 +349,17 @@ export default function ProductDetail() {
 
             <button
               onClick={handleAddToCart}
-              className="w-full py-3.5 rounded-full text-sm font-semibold flex items-center justify-center gap-2 transition-colors bg-rose-500 hover:bg-rose-600 text-white"
+              disabled={outOfStock || adding}
+              className="w-full py-3.5 rounded-full text-sm font-semibold flex items-center justify-center gap-2 transition-colors bg-rose-500 hover:bg-rose-600 text-white disabled:bg-stone-300 disabled:cursor-not-allowed"
             >
               <ShoppingBag className="w-4 h-4" strokeWidth={2} />
-              {added ? "Added to bag!" : "Add to Cart"}
+              {outOfStock
+                ? "Out of stock"
+                : adding
+                  ? "Adding..."
+                  : added
+                    ? "Added to bag!"
+                    : "Add to Cart"}
             </button>
 
             {added && (
@@ -293,11 +373,8 @@ export default function ProductDetail() {
 
             <div className="mt-8 pt-6 border-t border-stone-100">
               <h2 className="text-sm font-semibold text-stone-800 mb-2">Product Description</h2>
-              <p className="text-sm text-stone-500 leading-relaxed">
-                Elevate your wardrobe with the {product.name.toLowerCase()} by {product.designer}.
-                Thoughtfully crafted with premium materials, this piece pairs everyday versatility
-                with statement-making style — perfect whether you're dressing up or keeping it
-                effortless.
+              <p className="text-sm text-stone-500 leading-relaxed whitespace-pre-line">
+                {product.description}
               </p>
             </div>
           </div>
@@ -311,9 +388,31 @@ export default function ProductDetail() {
 
           {/* Write a review */}
           <div className="bg-white rounded-2xl shadow-sm p-5 mb-8">
-            {isAuthenticated ? (
+            {isAuthenticated && !showReviewForm && myReview ? (
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-sm text-stone-500">You've reviewed this product.</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={startEditingReview}
+                    className="border border-stone-200 text-stone-700 font-semibold px-5 py-2 rounded-full text-sm hover:bg-stone-50 transition-colors"
+                  >
+                    Edit review
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteReview}
+                    className="text-sm font-semibold text-stone-400 hover:text-rose-500 px-3 py-2 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ) : isAuthenticated ? (
               <>
-                <p className="text-sm font-semibold text-stone-800 mb-3">Write a review</p>
+                <p className="text-sm font-semibold text-stone-800 mb-3">
+                  {editingReviewId ? "Edit your review" : "Write a review"}
+                </p>
                 <div className="flex items-center gap-1 mb-3">
                   {Array.from({ length: 5 }).map((_, i) => {
                     const starValue = i + 1;
@@ -351,13 +450,25 @@ export default function ProductDetail() {
                   className="w-full rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all mb-2"
                 />
                 {reviewError && <p className="text-xs text-rose-500 mb-2">{reviewError}</p>}
-                <button
-                  type="button"
-                  onClick={handleSubmitReview}
-                  className="bg-rose-500 hover:bg-rose-600 text-white font-semibold px-6 py-2.5 rounded-full text-sm transition-colors"
-                >
-                  Post Review
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSubmitReview}
+                    disabled={savingReview}
+                    className="bg-rose-500 hover:bg-rose-600 text-white font-semibold px-6 py-2.5 rounded-full text-sm transition-colors disabled:opacity-60"
+                  >
+                    {savingReview ? "Saving..." : editingReviewId ? "Save Changes" : "Post Review"}
+                  </button>
+                  {editingReviewId && (
+                    <button
+                      type="button"
+                      onClick={resetReviewForm}
+                      className="text-sm font-semibold text-stone-500 hover:text-stone-700 px-4 py-2.5 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
               </>
             ) : (
               <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -384,7 +495,14 @@ export default function ProductDetail() {
               {reviews.map((review) => (
                 <div key={review.id} className="py-5">
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-semibold text-stone-800">{review.name}</p>
+                    <p className="text-sm font-semibold text-stone-800">
+                      {review.user.fullName}
+                      {review.userId === currentUser?.id && (
+                        <span className="ml-2 text-[11px] font-medium text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">
+                          You
+                        </span>
+                      )}
+                    </p>
                     <span className="text-xs text-stone-400">
                       {formatTimeAgo(review.createdAt)}
                     </span>
