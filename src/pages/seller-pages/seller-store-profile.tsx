@@ -108,7 +108,6 @@ export default function SellerStoreProfile() {
       toast.update(toastId, "error", json?.message || "Couldn't upload your logo. Try again.");
       return null;
     }
-
     toast.update(toastId, "success", "Logo uploaded!");
     return json.data.url as string;
   };
