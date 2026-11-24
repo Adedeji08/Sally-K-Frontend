@@ -23,8 +23,11 @@ import ProductEdit from "../pages/seller-pages/product-edit";
 import SellerOrders from "../pages/seller-pages/seller-orders";
 import SellerOrderDetail from "../pages/seller-pages/seller-order-detail";
 import SellerStoreProfile from "../pages/seller-pages/seller-store-profile";
-import SellerSubscription from "../pages/seller-pages/seller-subscription";
 import SellerPayouts from "../pages/seller-pages/seller-payouts";
+import MeasurementsDashboard from "../pages/seller-pages/measurements/measurements-dashboard";
+import MeasurementForm from "../pages/seller-pages/measurements/measurement-form";
+import MeasurementDetail from "../pages/seller-pages/measurements/measurement-detail";
+import ClientDetail from "../pages/seller-pages/measurements/client-detail";
 
 const MainRoutes = [
     {
@@ -163,15 +166,29 @@ const MainRoutes = [
                 )
             },
             {
+                path: "measurements",
+                element: <MeasurementsDashboard />
+            },
+            {
+                path: "measurements/new",
+                element: <MeasurementForm />
+            },
+            {
+                path: "measurements/clients/:id",
+                element: <ClientDetail />
+            },
+            {
+                path: "measurements/:id",
+                element: <MeasurementDetail />
+            },
+            {
+                path: "measurements/:id/edit",
+                element: <MeasurementForm />
+            },
+            {
                 path: "store-profile",
                 element: (
                     <SellerStoreProfile />
-                )
-            },
-            {
-                path: "subscription",
-                element: (
-                    <SellerSubscription />
                 )
             },
             {

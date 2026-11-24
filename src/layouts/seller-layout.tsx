@@ -3,11 +3,11 @@ import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
 import {
   Banknote,
   BadgeCheck,
-  CreditCard,
   LayoutDashboard,
   LogOut,
   Menu,
   Package,
+  Ruler,
   ShoppingBag,
   Store,
   X,
@@ -20,15 +20,15 @@ const NAV_ITEMS = [
   { to: "/seller/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/seller/products", label: "Products", icon: Package },
   { to: "/seller/orders", label: "Orders", icon: ShoppingBag },
+  { to: "/seller/measurements", label: "Measurements", icon: Ruler },
   { to: "/seller/store-profile", label: "Store Profile", icon: Store },
-  { to: "/seller/subscription", label: "Subscription", icon: CreditCard },
   { to: "/seller/payouts", label: "Payouts", icon: Banknote },
 ];
 
 const SellerLayout = () => {
   const { isAuthenticated, user, logout } = useAuth();
   const { currentUser } = useCurrentUser();
-  const { isVerified, isSubscribed } = useSeller();
+  const { isVerified } = useSeller();
   const sellerProfile = currentUser?.sellerProfile ?? null;
   const brandName = sellerProfile?.brandName ?? user?.name ?? "Seller";
   const fullName = currentUser?.fullName ?? user?.name ?? "";
@@ -56,7 +56,7 @@ const SellerLayout = () => {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:sticky top-0 lg:top-0 left-0 h-screen w-[260px] bg-white border-r border-[#E7E1E4] z-50 flex flex-col transition-transform duration-200 ${
+        className={`print:hidden fixed lg:sticky top-0 lg:top-0 left-0 h-screen w-[260px] bg-white border-r border-[#E7E1E4] z-50 flex flex-col transition-transform duration-200 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -121,13 +121,6 @@ const SellerLayout = () => {
                 <BadgeCheck className="w-3 h-3" strokeWidth={2} />
                 {isVerified ? "Verified" : "Unverified"}
               </span>
-              <span
-                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                  isSubscribed ? "bg-emerald-50 text-emerald-600" : "bg-stone-100 text-stone-500"
-                }`}
-              >
-                {isSubscribed ? "Subscribed" : "No plan"}
-              </span>
             </div>
             </div>
           </div>
@@ -143,7 +136,7 @@ const SellerLayout = () => {
 
       {/* Main content */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="lg:hidden flex items-center justify-between bg-white border-b border-[#E7E1E4] px-4 py-3">
+        <header className="print:hidden lg:hidden flex items-center justify-between bg-white border-b border-[#E7E1E4] px-4 py-3">
           <button
             onClick={() => setSidebarOpen(true)}
             className="text-[#1F1F1F]"

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Building2, CreditCard, Lock, ShieldCheck } from "lucide-react";
+import { Building2, CreditCard, Gift, Lock, ShieldCheck } from "lucide-react";
 import Navbar from "../../layouts/navbar";
 import { useAuth } from "../../context/auth-context";
 import { useCart } from "../../context/cart-context";
 import { useCheckout } from "../../context/checkout-context";
 import useRequest from "../../hooks/use-req";
+import useRewards from "../../hooks/use-rewards";
+import { maxRedeemablePoints, pointsToNaira } from "../../types/rewards";
 
 export default function Payment() {
   const navigate = useNavigate();
@@ -15,6 +17,8 @@ export default function Payment() {
   const { makeRequest: initializePayment } = useRequest("/payments/initialize", "POST");
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
+  const { rewards } = useRewards(isAuthenticated);
+  const [usePoints, setUsePoints] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -35,16 +39,23 @@ export default function Payment() {
     }
   }, [shipping, items.length, navigate]);
 
-  // Delivery is arranged (and paid for) directly with each supplier.
-  const total = subtotal;
+  // Points: redeem as many as the API's rules allow (balance + % of order).
+  // The backend re-validates everything, including the monthly cap.
+  const redeemable = rewards ? maxRedeemablePoints(rewards, subtotal) : 0;
+  const canRedeem = Boolean(rewards) && redeemable >= (rewards?.redemption.minPoints ?? Infinity);
+  const pointsToRedeem = usePoints && canRedeem ? redeemable : 0;
+  const pointsDiscount = rewards ? pointsToNaira(pointsToRedeem, rewards.redemption) : 0;
 
-  // POST /payments/initialize prices the server-side cart (no body), then we
-  // hand off to Paystack's hosted checkout. Paystack sends the buyer back to
+  // Delivery is arranged (and paid for) directly with each supplier.
+  const total = Math.max(0, subtotal - pointsDiscount);
+
+  // POST /payments/initialize prices the server-side cart, then we hand off to
+  // Paystack's hosted checkout. Paystack sends the buyer back to
   // /payment/callback?reference=..., which verifies and creates the orders.
   const handlePay = async () => {
     setError("");
     setStarting(true);
-    const [json, status] = await initializePayment();
+    const [json, status] = await initializePayment({ pointsToRedeem });
     const url = json?.data?.authorizationUrl;
     if (status < 200 || status >= 300 || !url) {
       setStarting(false);
@@ -158,6 +169,49 @@ export default function Payment() {
                 <span>Arranged with supplier</span>
               </div>
             </div>
+
+            {rewards && (
+              <div className="py-4 border-b border-stone-100">
+                {canRedeem ? (
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={usePoints}
+                      onChange={(e) => {
+                        setUsePoints(e.target.checked);
+                        setError("");
+                      }}
+                      className="mt-0.5 accent-rose-500"
+                    />
+                    <span className="flex-1">
+                      <span className="block text-sm font-medium text-stone-800">
+                        Use {redeemable.toLocaleString()} points
+                      </span>
+                      <span className="block text-xs text-stone-400">
+                        {rewards.points.available.toLocaleString()} available · up to{" "}
+                        {Math.round(rewards.redemption.maxPercentOfOrder * 100)}% of this order
+                      </span>
+                    </span>
+                    <span className="text-sm font-semibold text-emerald-600">
+                      -₦{pointsToNaira(redeemable, rewards.redemption).toFixed(2)}
+                    </span>
+                  </label>
+                ) : (
+                  <p className="flex items-center gap-2 text-xs text-stone-400">
+                    <Gift className="w-4 h-4 text-rose-400 shrink-0" strokeWidth={2} />
+                    {rewards.points.available.toLocaleString()} points available · redeem from{" "}
+                    {rewards.redemption.minPoints.toLocaleString()} points
+                  </p>
+                )}
+              </div>
+            )}
+
+            {pointsDiscount > 0 && (
+              <div className="flex justify-between text-sm text-stone-500 pt-4">
+                <span>Points discount</span>
+                <span className="text-emerald-600 font-medium">-₦{pointsDiscount.toFixed(2)}</span>
+              </div>
+            )}
 
             <div className="flex justify-between items-center py-4">
               <span className="text-sm font-semibold text-stone-800">Total</span>

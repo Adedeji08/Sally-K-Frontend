@@ -10,7 +10,7 @@ import type { SellerProductInput } from "../../context/seller-product-context";
 export default function ProductNew() {
   const navigate = useNavigate();
   const toast = useToast();
-  const { canSell, isVerified, isSubscribed } = useSeller();
+  const { canSell } = useSeller();
   const { addProduct } = useSellerProducts();
   const [submitting, setSubmitting] = useState(false);
 
@@ -47,31 +47,15 @@ export default function ProductNew() {
             Finish setup to publish products
           </h1>
           <p className="text-sm text-[#65799A] mb-6 max-w-sm mx-auto">
-            You need {!isVerified && "business verification"}
-            {!isVerified && !isSubscribed && " and "}
-            {!isSubscribed && "an active subscription"} before you can add new products.
+            Verify your business before you add new products. Listing is free.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            {!isVerified && (
-              <Link
-                to="/onboarding/verification"
-                className="bg-[#ED1280] hover:opacity-90 text-white font-semibold px-5 py-2.5 rounded-full text-sm transition-opacity"
-              >
-                Verify my business
-              </Link>
-            )}
-            {!isSubscribed && (
-              <Link
-                to="/seller/subscription"
-                className={
-                  isVerified
-                    ? "bg-[#ED1280] hover:opacity-90 text-white font-semibold px-5 py-2.5 rounded-full text-sm transition-opacity"
-                    : "border border-[#E5E7EB] text-[#4a4a4a] font-semibold px-5 py-2.5 rounded-full text-sm hover:bg-[#F7F2F4] transition-colors"
-                }
-              >
-                Choose a plan
-              </Link>
-            )}
+            <Link
+              to="/onboarding/verification"
+              className="bg-[#ED1280] hover:opacity-90 text-white font-semibold px-5 py-2.5 rounded-full text-sm transition-opacity"
+            >
+              Verify my business
+            </Link>
           </div>
         </div>
       </div>

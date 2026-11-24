@@ -30,7 +30,7 @@ export default function DashboardOverview() {
     () => receivedOrders.filter((o) => o.status !== "CANCELLED"),
     [receivedOrders]
   );
-  const { canSell, isVerified, isSubscribed } = useSeller();
+  const { canSell } = useSeller();
   const { products } = useSellerProducts();
   const [period, setPeriod] = useState<SalesPeriod>("daily");
 
@@ -81,27 +81,15 @@ export default function DashboardOverview() {
               Finish setup to start selling
             </p>
             <p className="text-[12px] text-[#92400E]/80 mt-0.5">
-              You need {!isVerified && "business verification"}
-              {!isVerified && !isSubscribed && " and "}
-              {!isSubscribed && "an active subscription"} before you can publish products.
+              Verify your business to start publishing products — listing is free.
             </p>
             <div className="flex gap-3 mt-2">
-              {!isVerified && (
-                <Link
-                  to="/onboarding/verification"
-                  className="text-[12px] font-semibold text-[#ED1280] hover:opacity-80"
-                >
-                  Verify business →
-                </Link>
-              )}
-              {!isSubscribed && (
-                <Link
-                  to="/seller/subscription"
-                  className="text-[12px] font-semibold text-[#ED1280] hover:opacity-80"
-                >
-                  Choose a plan →
-                </Link>
-              )}
+              <Link
+                to="/onboarding/verification"
+                className="text-[12px] font-semibold text-[#ED1280] hover:opacity-80"
+              >
+                Verify business →
+              </Link>
             </div>
           </div>
         </div>

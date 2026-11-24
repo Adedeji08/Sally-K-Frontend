@@ -32,7 +32,7 @@ const OnboardingSuccess = () => {
           {isSeller
             ? `Welcome${
                 state.brandName ? `, ${state.brandName}` : ""
-              }! Your storefront is live. Verify your business and subscribe to a plan to start listing products for sale.`
+              }! Your storefront is live. Verify your business to start listing products — it's free to sell.`
             : `Welcome${
                 state.fullName ? `, ${state.fullName}` : ""
               }! Your account is ready — start exploring designer pieces.`}
@@ -62,7 +62,7 @@ const OnboardingSuccess = () => {
           <p className="text-[11px] text-[#95959D] text-center mt-1">
             You can explore your dashboard and set up your catalog anytime, but you
             won't be able to publish products for sale until your business is
-            verified and you've chosen a subscription plan.
+            verified.
           </p>
         </div>
       ) : (

@@ -16,7 +16,6 @@ import OnboardingSuccess from "../pages/auth/onboarding-success";
 import StoreSetup from "../pages/seller-pages/store-setup";
 import Verification from "../pages/seller-pages/verification";
 import BankAccountSetup from "../pages/seller-pages/bank-account";
-import Subscription from "../pages/seller-pages/subscription";
 
 export default function ThemeRoutes() {
 
@@ -74,12 +73,6 @@ export default function ThemeRoutes() {
             path: "/onboarding/bank-account",
             element: (
                 <BankAccountSetup />
-            )
-        },
-        {
-            path: "/onboarding/subscription",
-            element: (
-                <Subscription />
             )
         },
         {

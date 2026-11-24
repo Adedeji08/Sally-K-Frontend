@@ -62,9 +62,9 @@ const BankAccountSetup = () => {
           variant="primary"
           type="button"
           className="font-normal"
-          onClick={() => navigate("/onboarding/subscription")}
+          onClick={() => navigate("/seller/dashboard")}
         >
-          Choose a subscription plan
+          Go to my dashboard
         </Button>
       </AuthShell>
     );
