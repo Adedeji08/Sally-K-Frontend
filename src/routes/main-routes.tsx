@@ -28,6 +28,9 @@ import MeasurementsDashboard from "../pages/seller-pages/measurements/measuremen
 import MeasurementForm from "../pages/seller-pages/measurements/measurement-form";
 import MeasurementDetail from "../pages/seller-pages/measurements/measurement-detail";
 import ClientDetail from "../pages/seller-pages/measurements/client-detail";
+import SketchesGallery from "../pages/seller-pages/sketches/sketches-gallery";
+import SketchEditor from "../pages/seller-pages/sketches/sketch-editor";
+import SketchDetail from "../pages/seller-pages/sketches/sketch-detail";
 
 const MainRoutes = [
     {
@@ -184,6 +187,22 @@ const MainRoutes = [
             {
                 path: "measurements/:id/edit",
                 element: <MeasurementForm />
+            },
+            {
+                path: "sketches",
+                element: <SketchesGallery />
+            },
+            {
+                path: "sketches/new",
+                element: <SketchEditor />
+            },
+            {
+                path: "sketches/:id",
+                element: <SketchDetail />
+            },
+            {
+                path: "sketches/:id/edit",
+                element: <SketchEditor />
             },
             {
                 path: "store-profile",

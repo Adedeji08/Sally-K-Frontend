@@ -8,6 +8,7 @@ import {
   Menu,
   Package,
   Ruler,
+  Sparkles,
   ShoppingBag,
   Store,
   X,
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { to: "/seller/products", label: "Products", icon: Package },
   { to: "/seller/orders", label: "Orders", icon: ShoppingBag },
   { to: "/seller/measurements", label: "Measurements", icon: Ruler },
+  { to: "/seller/sketches", label: "AI Sketch", icon: Sparkles },
   { to: "/seller/store-profile", label: "Store Profile", icon: Store },
   { to: "/seller/payouts", label: "Payouts", icon: Banknote },
 ];

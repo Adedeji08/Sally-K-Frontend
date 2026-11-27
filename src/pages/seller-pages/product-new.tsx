@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, Lock } from "lucide-react";
 import { useSeller } from "../../context/seller-context";
 import { useSellerProducts } from "../../context/seller-product-context";
@@ -9,6 +9,8 @@ import type { SellerProductInput } from "../../context/seller-product-context";
 
 export default function ProductNew() {
   const navigate = useNavigate();
+  // AI Sketch can hand over a rendered image to start a listing from.
+  const prefill = (useLocation().state as { images?: string[]; name?: string } | null) ?? null;
   const toast = useToast();
   const { canSell } = useSeller();
   const { addProduct } = useSellerProducts();
@@ -80,6 +82,7 @@ export default function ProductNew() {
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <ProductForm
           onSubmit={handleSubmit}
+          initialValues={prefill ? { images: prefill.images, name: prefill.name } : undefined}
           submitLabel="Publish Product"
           submitting={submitting}
         />
